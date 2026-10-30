@@ -37,6 +37,12 @@
   .meldung.fehler { background: #fbe9e7; color: var(--rot); }
   img.vorschau { width: 100%; border-radius: 8px; margin-top: 10px; display: block; }
   .versteckt { display: none !important; }
+  .knopfreihe { display: flex; gap: 8px; }
+  button.haupt.halb { margin-top: 0; flex: 1; }
+  button.haupt.hell { background: #fff; color: var(--gruen); border: 1px solid var(--gruen); }
+  #scanner { margin-top: 10px; text-align: center; }
+  #scanner video { width: 100%; max-height: 60vh; border-radius: 8px; background: #000; display: block; margin-bottom: 8px; }
+  .gruppe { font-size: 13px; font-weight: 600; color: var(--gruen); margin: 14px 0 2px; text-transform: uppercase; letter-spacing: .03em; }
   footer { text-align: center; font-size: 12px; color: var(--grau); padding: 20px 16px 28px; }
 </style>
 </head>
@@ -48,16 +54,17 @@
 
 <!-- Anmeldung -->
 <main id="anmeldung" class="versteckt">
-  <div class="karte">
+  <!-- echtes Formular: nur dann bieten Browser und Passwort-Manager an, die Anmeldedaten zu speichern -->
+  <form class="karte" id="anmeldeform" method="post" action="#" autocomplete="on">
     <b>Anmelden</b>
     <div class="klein">Mit der dienstlichen E-Mail-Adresse und dem gewohnten ScienceHub-Passwort.</div>
     <label for="email">E-Mail-Adresse</label>
-    <input id="email" type="email" autocomplete="username" inputmode="email">
+    <input id="email" name="email" type="email" autocomplete="username" inputmode="email" required>
     <label for="passwort">Passwort</label>
-    <input id="passwort" type="password" autocomplete="current-password">
-    <button class="haupt" id="anmelden">Anmelden</button>
+    <input id="passwort" name="password" type="password" autocomplete="current-password" required>
+    <button class="haupt" id="anmelden" type="submit">Anmelden</button>
     <div id="anmelde-meldung"></div>
-  </div>
+  </form>
 </main>
 
 <nav id="reiter" class="versteckt">
@@ -68,7 +75,14 @@
 <!-- Parodia: Verbrauch melden -->
 <main id="verbrauch" class="versteckt">
   <div class="karte">
-    <label for="suche">Chemikalie oder Material suchen (Name, CAS, Artikelnummer, Lagerort)</label>
+    <div class="knopfreihe">
+      <button class="haupt halb" id="scannen" type="button">📷 Scannen</button>
+      <button class="haupt halb hell" id="alle" type="button">📋 Liste</button>
+    </div>
+    <div id="scan-hinweis" class="klein versteckt" style="margin-top:8px"></div>
+    <div id="scan-meldung"></div>
+    <div id="scanner" class="versteckt"><video id="video" playsinline muted></video><button class="leise" id="scan-stopp" type="button">Abbrechen</button></div>
+    <label for="suche">… oder suchen (Name, CAS, Artikelnummer, Lagerort)</label>
     <input id="suche" type="search" placeholder="z. B. Methanol" autocomplete="off">
     <div id="treffer" style="margin-top:8px"></div>
   </div>
@@ -101,12 +115,14 @@
 
 <footer>
   <div id="abmelden-zeile" class="versteckt"><button class="leise" id="abmelden">Abmelden</button></div>
-  <div style="margin-top:10px">Matucana · Schnittstelle <span id="version">Maurice 0.010</span> · ScienceHub, CAU Kiel</div>
+  <div style="margin-top:10px">Matucana · Schnittstelle <span id="version">Maurice 0.012</span> · ScienceHub, CAU Kiel</div>
 </footer>
 
+<!-- Scanner fuer QR, DataMatrix (GS1) und Strichcodes, auch auf dem iPhone (ZXing, MIT-Lizenz) -->
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
 <script>
 "use strict";
-const VERSION = "Maurice 0.010";
+const VERSION = "Maurice 0.012";
 const FOTO_PX = 2400;   // laengste Kante nach dem Verkleinern
 let K = null;           // {url, apikey} aus konfig.json
 let sitzung = null;     // {access_token, refresh_token, laeuft_ab}
@@ -169,6 +185,8 @@ async function angemeldet() {
   const ich = await rpc("ich");
   $("wer").textContent = `${ich.name} · ${ich.rolle === "lesen" ? "nur lesen" : ich.rolle === "admin" ? "Admin" : "Bearbeiter/in"}`;
   zeige("verbrauch");
+  const g = gebindeAusText(location.hash);   // von einem QR-Etikett geoeffnet
+  if (g) gebindeOeffnen(g);
 }
 
 function abmelden() {
@@ -176,19 +194,23 @@ function abmelden() {
   $("wer").textContent = "ScienceHub auf dem Smartphone"; zeige("anmeldung");
 }
 
-$("anmelden").onclick = async () => {
+$("anmeldeform").addEventListener("submit", async ev => {
+  ev.preventDefault();
   meldung("anmelde-meldung", "");
   $("anmelden").disabled = true;
   try {
     await auth("password", { email: $("email").value.trim(), password: $("passwort").value });
+    try {   // Chrome/Android: Anmeldedaten ausdruecklich zum Speichern anbieten (Safari erkennt das abgeschickte Formular selbst)
+      if (window.PasswordCredential) await navigator.credentials.store(new PasswordCredential($("anmeldeform")));
+    } catch (e) {}
+    history.replaceState(null, "", location.pathname + location.search + location.hash);   // gilt fuer Browser als „Seite gewechselt“
     $("passwort").value = "";
     await angemeldet();
   } catch (e) {
     sitzung = null; speichern();
     meldung("anmelde-meldung", e.message === "Invalid login credentials" ? "Adresse oder Passwort stimmt nicht." : e.message, "fehler");
   } finally { $("anmelden").disabled = false; }
-};
-$("passwort").addEventListener("keydown", e => { if (e.key === "Enter") $("anmelden").click(); });
+});
 $("abmelden").onclick = abmelden;
 for (const b of document.querySelectorAll("nav button")) b.onclick = () => zeige(b.dataset.seite);
 
@@ -201,14 +223,26 @@ $("suche").addEventListener("input", () => {
   suchZeit = setTimeout(suchen, 300);
 });
 
+let listeAn = false;   // „Liste“: alle Artikel mit offenen Gebinden statt Suchergebnis
+
 async function suchen() {
   const q = $("suche").value.trim();
   const ziel = $("treffer");
-  if (q.length < 2) { ziel.innerHTML = ""; return; }
+  if (q) listeAn = false;
+  if (!listeAn && q.length < 2) { ziel.innerHTML = ""; return; }
   try {
-    const liste = await rpc("artikel_suchen", { q });
-    ziel.innerHTML = liste.length ? "" : '<div class="klein">Nichts gefunden.</div>';
-    for (const a of liste) {
+    zeigeArtikel(await rpc("artikel_suchen", { q: listeAn ? "" : q }), listeAn);
+  } catch (e) { ziel.innerHTML = ""; meldung("treffer", e.message, "fehler"); }
+}
+
+function zeigeArtikel(liste, gruppiert) {
+  const ziel = $("treffer");
+  ziel.innerHTML = liste.length ? "" : '<div class="klein">Nichts gefunden.</div>';
+  let typ = null;
+  for (const a of liste) {
+      if (gruppiert && a.typ !== typ) {
+        typ = a.typ; const h = document.createElement("div"); h.className = "gruppe"; h.textContent = typ || "ohne Typ"; ziel.appendChild(h);
+      }
       const d = document.createElement("div"); d.className = "artikel";
       const b = document.createElement("b"); b.textContent = a.name; d.appendChild(b);
       const k = document.createElement("div"); k.className = "klein";
@@ -219,15 +253,133 @@ async function suchen() {
       for (const g of a.gebinde || []) {
         const e = document.createElement("button"); e.className = "geb"; e.type = "button";
         e.innerHTML = "<span></span><span></span>";
-        e.firstChild.textContent = `${g.behaelter || "Gebinde"} · ${g.lagerort || "ohne Lagerort"}`;
+        e.firstChild.textContent = `${g.behaelter || "Gebinde"} · ${g.lagerort || "ohne Lagerort"}${g.charge ? " · Ch. " + g.charge : ""}`;
         e.lastChild.textContent = `${zahl(g.menge)} ${a.einheit || ""} (${g.status})`;
         e.onclick = () => waehlen(a, g, e);
         d.appendChild(e);
       }
       ziel.appendChild(d);
-    }
-  } catch (e) { ziel.innerHTML = ""; meldung("treffer", e.message, "fehler"); }
+  }
 }
+
+$("alle").onclick = () => { listeAn = true; $("suche").value = ""; suchen(); };
+
+// ---- QR-Etiketten der Gebinde (Parodia): Inhalt <Adresse dieser App>#g=<geb_id>
+function gebindeAusText(t) {
+  const m = /[#?&]g=(\d+)/.exec(t || "") || /^\s*(\d+)\s*$/.exec(t || "");
+  return m ? Number(m[1]) : null;
+}
+
+async function gebindeOeffnen(gid) {
+  try {
+    const a = await rpc("gebinde_holen", { geb_id: gid });
+    if (location.hash) history.replaceState(null, "", location.pathname + location.search);   // neu laden oeffnet es nicht noch einmal
+    listeAn = false; $("suche").value = "";
+    zeigeArtikel([a], false);
+    const knopf = document.querySelector("#treffer .geb");
+    if (a.gebinde[0].status === "voll" || a.gebinde[0].status === "angebrochen") waehlen(a, a.gebinde[0], knopf);
+    else meldung("treffer", `${a.name}, ${a.gebinde[0].behaelter || "Gebinde"}: schon als „${a.gebinde[0].status}“ gemeldet.`, "fehler");
+  } catch (e) { meldung("treffer", e.message, "fehler"); }
+}
+
+// ---- Hersteller-Codes: GS1 (DataMatrix/GS1-128, z. B. Merck/Sigma) mit GTIN (01), Charge (10), Verfall (17); sonst EAN oder der Text
+const GS = "\u001d";
+const AI_FEST = { "00": 18, "01": 14, "02": 14, "11": 6, "12": 6, "13": 6, "15": 6, "16": 6, "17": 6, "20": 2 };
+function gs1Lesen(t) {
+  let s = String(t || "").replace(/^\](d2|C1|Q3|e0)/, "");
+  const erg = {};
+  if (/^\(\d{2,4}\)/.test(s)) {   // lesbare Schreibweise „(01)04006…(10)S8F123“
+    for (const m of s.matchAll(/\((\d{2,4})\)([^(]*)/g)) erg[m[1]] = m[2].trim();
+  } else {
+    if (!/^(01|02|00)\d/.test(s)) return null;
+    while (s.length >= 2) {
+      const ai = s.slice(0, 2);
+      if (AI_FEST[ai]) { erg[ai] = s.slice(2, 2 + AI_FEST[ai]); s = s.slice(2 + AI_FEST[ai]); if (s[0] === GS) s = s.slice(1); continue; }
+      const lang = /^(24\d|25\d|7\d\d|8\d\d\d|3\d\d\d|41\d)/.exec(s);   // drei-/vierstellige AIs, sonst zweistellig (10, 21, 30, 9x …)
+      const k = lang ? lang[0] : ai;
+      const ende = s.indexOf(GS, k.length);
+      erg[k] = ende < 0 ? s.slice(k.length) : s.slice(k.length, ende);
+      s = ende < 0 ? "" : s.slice(ende + 1);
+    }
+  }
+  return erg["01"] || erg["02"] ? { gtin: erg["01"] || erg["02"], charge: erg["10"] || null, verfall: erg["17"] || null } : null;
+}
+
+async function codeVerarbeiten(text) {
+  const gid = gebindeAusText(text);   // eigenes QR-Etikett
+  if (gid && /[#?&]g=\d+/.test(text)) { await gebindeOeffnen(gid); return; }
+  const gs = gs1Lesen(text);
+  const code = gs ? gs.gtin : String(text).trim(), charge = gs ? gs.charge : null;
+  try {
+    const r = await rpc("code_suchen", { code, charge });
+    if (r.unbekannt) { zuordnenAnbieten(r.code, charge); return; }
+    listeAn = false; $("suche").value = "";
+    zeigeArtikel([r], false);
+    const knoepfe = [...document.querySelectorAll("#treffer .geb")];
+    const i = r.treffer ? r.gebinde.findIndex(g => g.geb_id === r.treffer) : (r.gebinde && r.gebinde.length === 1 ? 0 : -1);
+    if (i >= 0) waehlen(r, r.gebinde[i], knoepfe[i]);
+    else if (r.gebinde && r.gebinde.length) meldung("scan-meldung", `${r.name}${charge ? `, Charge ${charge}` : ""}: bitte das Gebinde antippen.`, "ok");
+  } catch (e) { meldung("treffer", e.message, "fehler"); }
+}
+
+function zuordnenAnbieten(code, charge) {   // unbekannter Code: einmal einem Artikel zuordnen
+  const ziel = $("treffer"); ziel.innerHTML = "";
+  const k = document.createElement("div"); k.className = "meldung ok";
+  k.textContent = `Neuer Hersteller-Code ${code}${charge ? ` (Charge ${charge})` : ""}. Zu welchem Artikel gehört er? Einmal zuordnen – danach findet ein Scan ihn direkt.`;
+  ziel.appendChild(k);
+  const eingabe = document.createElement("input"); eingabe.type = "search"; eingabe.placeholder = "Artikel suchen"; eingabe.style.marginTop = "8px";
+  const liste = document.createElement("div");
+  ziel.append(eingabe, liste);
+  let zeit = null;
+  eingabe.oninput = () => { clearTimeout(zeit); zeit = setTimeout(async () => {
+    const q = eingabe.value.trim(); liste.innerHTML = "";
+    if (q.length < 2) return;
+    for (const a of await rpc("artikel_suchen", { q }).catch(() => [])) {
+      const b = document.createElement("button"); b.className = "geb"; b.type = "button";
+      b.innerHTML = "<span></span><span>zuordnen</span>"; b.firstChild.textContent = `${a.name}${a.cas ? " · " + a.cas : ""}`;
+      b.onclick = async () => {
+        try { await rpc("code_zuordnen", { code, art_id: a.art_id }); await codeVerarbeiten(charge ? `(01)${code}(10)${charge}` : code); }
+        catch (e) { meldung("treffer", e.message, "fehler"); }
+      };
+      liste.appendChild(b);
+    }
+  }, 300); };
+  eingabe.focus();
+}
+
+let leser = null;
+function scanStoppen() {
+  try { if (leser) leser.reset(); } catch (e) {}
+  leser = null; $("scanner").classList.add("versteckt");
+}
+$("scan-stopp").onclick = scanStoppen;
+$("scannen").onclick = async () => {
+  $("scan-hinweis").classList.add("versteckt"); meldung("scan-meldung", "");
+  if (!window.ZXing || !navigator.mediaDevices) {
+    $("scan-hinweis").textContent = "Der Scanner ließ sich nicht laden (keine Internetverbindung?). QR-Etiketten lassen sich auch mit der Kamera-App öffnen.";
+    $("scan-hinweis").classList.remove("versteckt"); return;
+  }
+  try {
+    const Z = window.ZXing, hinweise = new Map();
+    hinweise.set(Z.DecodeHintType.POSSIBLE_FORMATS, [Z.BarcodeFormat.QR_CODE, Z.BarcodeFormat.DATA_MATRIX, Z.BarcodeFormat.EAN_13,
+                 Z.BarcodeFormat.EAN_8, Z.BarcodeFormat.CODE_128, Z.BarcodeFormat.UPC_A]);
+    hinweise.set(Z.DecodeHintType.TRY_HARDER, true);
+    leser = new Z.BrowserMultiFormatReader(hinweise, 300);
+    $("scanner").classList.remove("versteckt");
+    await leser.decodeFromConstraints({ video: { facingMode: "environment" } }, $("video"), (ergebnis) => {
+      if (!ergebnis || !leser) return;
+      const text = ergebnis.getText();
+      scanStoppen();
+      if (navigator.vibrate) navigator.vibrate(60);
+      codeVerarbeiten(text);
+    });
+  } catch (e) {
+    scanStoppen();
+    $("scan-hinweis").textContent = "Die Kamera ließ sich nicht öffnen (" + e.message + "). Bitte den Zugriff auf die Kamera erlauben.";
+    $("scan-hinweis").classList.remove("versteckt");
+  }
+};
+window.addEventListener("hashchange", () => { const g = gebindeAusText(location.hash); if (g && sitzung) { zeige("verbrauch"); gebindeOeffnen(g); } });
 
 function waehlen(a, g, knopf) {
   for (const x of document.querySelectorAll(".geb.gewaehlt")) x.classList.remove("gewaehlt");
