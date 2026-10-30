@@ -1,0 +1,3 @@
+Matucana – ScienceHub auf dem Smartphone (Arbeitsgruppe Pharmakognosie, CAU Kiel).
+Diese Dateien gehören in ein öffentliches GitHub-Repository mit GitHub Pages. konfig.json enthält nur die Adresse des
+Servers und den öffentlichen Schlüssel (Publishable key); Zugriff bekommt nur, wer ein ScienceHub-Konto hat.

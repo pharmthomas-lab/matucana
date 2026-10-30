@@ -1,0 +1,10 @@
+{
+  "name": "Matucana · ScienceHub",
+  "short_name": "Matucana",
+  "description": "ScienceHub auf dem Smartphone: Verbrauch melden, DC-Fotos hochladen",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f6f7f8",
+  "theme_color": "#2e7d4f",
+  "icons": [{ "src": "icon.png", "sizes": "512x512", "type": "image/png" }]
+}

@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2e7d4f">
+<title>Matucana · ScienceHub</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
+<style>
+  :root { --gruen: #2e7d4f; --gruen-hell: #e8f4ec; --text: #1d2329; --grau: #5a6470; --linie: #d5dbe0; --rot: #b03a2e; --hg: #f6f7f8; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; color: var(--text); background: var(--hg); font-size: 16px; }
+  header { background: var(--gruen); color: #fff; padding: 14px 16px 10px; padding-top: max(14px, env(safe-area-inset-top)); }
+  header h1 { margin: 0; font-size: 20px; font-weight: 600; }
+  header .wer { font-size: 13px; opacity: .85; margin-top: 2px; }
+  nav { display: flex; background: #fff; border-bottom: 1px solid var(--linie); position: sticky; top: 0; z-index: 2; }
+  nav button { flex: 1; border: 0; background: none; padding: 12px 4px; font-size: 15px; color: var(--grau); border-bottom: 3px solid transparent; }
+  nav button.an { color: var(--gruen); border-bottom-color: var(--gruen); font-weight: 600; }
+  main { padding: 16px; max-width: 640px; margin: 0 auto; }
+  .karte { background: #fff; border: 1px solid var(--linie); border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+  label { display: block; font-size: 13px; color: var(--grau); margin: 10px 0 4px; }
+  input, textarea { width: 100%; font-size: 16px; padding: 10px 12px; border: 1px solid var(--linie); border-radius: 8px; background: #fff; }
+  button.haupt { width: 100%; margin-top: 14px; padding: 13px; font-size: 16px; font-weight: 600; color: #fff; background: var(--gruen); border: 0; border-radius: 8px; }
+  button.haupt:disabled { opacity: .5; }
+  button.leise { border: 1px solid var(--linie); background: #fff; border-radius: 8px; padding: 8px 12px; font-size: 14px; color: var(--grau); }
+  .artikel { padding: 10px 0; border-top: 1px solid var(--linie); }
+  .artikel:first-child { border-top: 0; }
+  .artikel b { display: block; }
+  .klein { font-size: 13px; color: var(--grau); }
+  .geb { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; padding: 8px 10px; background: var(--hg);
+         border-radius: 8px; border: 1px solid transparent; width: 100%; text-align: left; font-size: 15px; color: var(--text); }
+  .geb.gewaehlt { border-color: var(--gruen); background: var(--gruen-hell); }
+  .meldung { padding: 10px 12px; border-radius: 8px; margin-top: 12px; font-size: 15px; }
+  .meldung.ok { background: var(--gruen-hell); color: #1f5e3a; }
+  .meldung.fehler { background: #fbe9e7; color: var(--rot); }
+  img.vorschau { width: 100%; border-radius: 8px; margin-top: 10px; display: block; }
+  .versteckt { display: none !important; }
+  footer { text-align: center; font-size: 12px; color: var(--grau); padding: 20px 16px 28px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Matucana</h1>
+  <div class="wer" id="wer">ScienceHub auf dem Smartphone</div>
+</header>
+
+<!-- Anmeldung -->
+<main id="anmeldung" class="versteckt">
+  <div class="karte">
+    <b>Anmelden</b>
+    <div class="klein">Mit der dienstlichen E-Mail-Adresse und dem gewohnten ScienceHub-Passwort.</div>
+    <label for="email">E-Mail-Adresse</label>
+    <input id="email" type="email" autocomplete="username" inputmode="email">
+    <label for="passwort">Passwort</label>
+    <input id="passwort" type="password" autocomplete="current-password">
+    <button class="haupt" id="anmelden">Anmelden</button>
+    <div id="anmelde-meldung"></div>
+  </div>
+</main>
+
+<nav id="reiter" class="versteckt">
+  <button data-seite="verbrauch" class="an">Verbrauch melden</button>
+  <button data-seite="dc">DC-Foto</button>
+</nav>
+
+<!-- Parodia: Verbrauch melden -->
+<main id="verbrauch" class="versteckt">
+  <div class="karte">
+    <label for="suche">Chemikalie oder Material suchen (Name, CAS, Artikelnummer, Lagerort)</label>
+    <input id="suche" type="search" placeholder="z. B. Methanol" autocomplete="off">
+    <div id="treffer" style="margin-top:8px"></div>
+  </div>
+  <div class="karte versteckt" id="entnahme">
+    <b id="entnahme-titel"></b>
+    <div class="klein" id="entnahme-geb"></div>
+    <label for="menge">Entnommene Menge (<span id="einheit">Einheit</span>)</label>
+    <input id="menge" type="number" inputmode="decimal" min="0" step="any">
+    <label for="bemerkung">Bemerkung (optional)</label>
+    <input id="bemerkung" type="text" maxlength="200">
+    <button class="haupt" id="melden">Verbrauch melden</button>
+    <div id="verbrauch-meldung"></div>
+  </div>
+</main>
+
+<!-- Rhipsalis: DC-Foto -->
+<main id="dc" class="versteckt">
+  <div class="karte">
+    <b>DC-Platte fotografieren</b>
+    <div class="klein">Das Foto erscheint in Echinopsis unter Rhipsalis → DC als Entwurf zum Prüfen.</div>
+    <label for="titel">Titel (optional)</label>
+    <input id="titel" type="text" maxlength="200" placeholder="z. B. Extrakte Opuntia, Laufmittel A">
+    <label for="foto">Foto</label>
+    <input id="foto" type="file" accept="image/*" capture="environment">
+    <img id="vorschau" class="vorschau versteckt" alt="">
+    <button class="haupt" id="hochladen" disabled>Hochladen</button>
+    <div id="dc-meldung"></div>
+  </div>
+</main>
+
+<footer>
+  <div id="abmelden-zeile" class="versteckt"><button class="leise" id="abmelden">Abmelden</button></div>
+  <div style="margin-top:10px">Matucana · Schnittstelle <span id="version">Maurice 0.010</span> · ScienceHub, CAU Kiel</div>
+</footer>
+
+<script>
+"use strict";
+const VERSION = "Maurice 0.010";
+const FOTO_PX = 2400;   // laengste Kante nach dem Verkleinern
+let K = null;           // {url, apikey} aus konfig.json
+let sitzung = null;     // {access_token, refresh_token, laeuft_ab}
+const $ = id => document.getElementById(id);
+
+function meldung(ziel, text, art) {
+  $(ziel).innerHTML = text ? `<div class="meldung ${art || "ok"}"></div>` : "";
+  if (text) $(ziel).firstChild.textContent = text;
+}
+
+function speichern() {
+  try { sitzung ? localStorage.setItem("matucana_sitzung", JSON.stringify(sitzung)) : localStorage.removeItem("matucana_sitzung"); } catch (e) {}
+}
+
+async function auth(art, body) {
+  const r = await fetch(`${K.url}/auth/v1/token?grant_type=${art}`, {
+    method: "POST", headers: { apikey: K.apikey, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error_description || j.msg || j.message || `Anmeldung fehlgeschlagen (${r.status})`);
+  sitzung = { access_token: j.access_token, refresh_token: j.refresh_token, laeuft_ab: Date.now() + (j.expires_in || 3600) * 1000 };
+  speichern();
+}
+
+async function rpc(funktion, argumente) {
+  if (sitzung && Date.now() > sitzung.laeuft_ab - 60000) await auth("refresh_token", { refresh_token: sitzung.refresh_token });
+  const r = await fetch(`${K.url}/rest/v1/rpc/${funktion}`, {
+    method: "POST", body: JSON.stringify(argumente || {}),
+    headers: { apikey: K.apikey, Authorization: `Bearer ${sitzung.access_token}`, "Content-Type": "application/json",
+               "Content-Profile": "matucana", "Accept-Profile": "matucana" } });
+  const j = await r.json().catch(() => null);
+  if (!r.ok) {
+    const text = (j && (j.message || j.msg)) || `Fehler ${r.status}`;
+    if (r.status === 401) { abmelden(); }
+    throw new Error(text);
+  }
+  return j;
+}
+
+function zeige(seite) {
+  for (const id of ["anmeldung", "verbrauch", "dc"]) $(id).classList.toggle("versteckt", id !== seite);
+  $("reiter").classList.toggle("versteckt", seite === "anmeldung");
+  $("abmelden-zeile").classList.toggle("versteckt", seite === "anmeldung");
+  for (const b of document.querySelectorAll("nav button")) b.classList.toggle("an", b.dataset.seite === seite);
+}
+
+async function start() {
+  try {
+    K = await (await fetch("konfig.json", { cache: "no-store" })).json();
+  } catch (e) {
+    meldung("anmelde-meldung", "konfig.json fehlt – die Adresse des Servers ist nicht eingetragen.", "fehler"); zeige("anmeldung"); return;
+  }
+  try { sitzung = JSON.parse(localStorage.getItem("matucana_sitzung") || "null"); } catch (e) { sitzung = null; }
+  if (sitzung) {
+    try { await angemeldet(); return; } catch (e) { sitzung = null; speichern(); }
+  }
+  zeige("anmeldung");
+}
+
+async function angemeldet() {
+  const ich = await rpc("ich");
+  $("wer").textContent = `${ich.name} · ${ich.rolle === "lesen" ? "nur lesen" : ich.rolle === "admin" ? "Admin" : "Bearbeiter/in"}`;
+  zeige("verbrauch");
+}
+
+function abmelden() {
+  sitzung = null; speichern();
+  $("wer").textContent = "ScienceHub auf dem Smartphone"; zeige("anmeldung");
+}
+
+$("anmelden").onclick = async () => {
+  meldung("anmelde-meldung", "");
+  $("anmelden").disabled = true;
+  try {
+    await auth("password", { email: $("email").value.trim(), password: $("passwort").value });
+    $("passwort").value = "";
+    await angemeldet();
+  } catch (e) {
+    sitzung = null; speichern();
+    meldung("anmelde-meldung", e.message === "Invalid login credentials" ? "Adresse oder Passwort stimmt nicht." : e.message, "fehler");
+  } finally { $("anmelden").disabled = false; }
+};
+$("passwort").addEventListener("keydown", e => { if (e.key === "Enter") $("anmelden").click(); });
+$("abmelden").onclick = abmelden;
+for (const b of document.querySelectorAll("nav button")) b.onclick = () => zeige(b.dataset.seite);
+
+// ---- Verbrauch melden
+let gewaehlt = null, suchZeit = null;
+const zahl = x => (x === null || x === undefined) ? "–" : Number(x).toLocaleString("de-DE", { maximumFractionDigits: 3 });
+
+$("suche").addEventListener("input", () => {
+  clearTimeout(suchZeit);
+  suchZeit = setTimeout(suchen, 300);
+});
+
+async function suchen() {
+  const q = $("suche").value.trim();
+  const ziel = $("treffer");
+  if (q.length < 2) { ziel.innerHTML = ""; return; }
+  try {
+    const liste = await rpc("artikel_suchen", { q });
+    ziel.innerHTML = liste.length ? "" : '<div class="klein">Nichts gefunden.</div>';
+    for (const a of liste) {
+      const d = document.createElement("div"); d.className = "artikel";
+      const b = document.createElement("b"); b.textContent = a.name; d.appendChild(b);
+      const k = document.createElement("div"); k.className = "klein";
+      k.textContent = [a.typ, a.cas, a.artikelnummer].filter(Boolean).join(" · "); d.appendChild(k);
+      if (!a.gebinde || !a.gebinde.length) {
+        const n = document.createElement("div"); n.className = "klein"; n.textContent = "Kein offenes Gebinde."; d.appendChild(n);
+      }
+      for (const g of a.gebinde || []) {
+        const e = document.createElement("button"); e.className = "geb"; e.type = "button";
+        e.innerHTML = "<span></span><span></span>";
+        e.firstChild.textContent = `${g.behaelter || "Gebinde"} · ${g.lagerort || "ohne Lagerort"}`;
+        e.lastChild.textContent = `${zahl(g.menge)} ${a.einheit || ""} (${g.status})`;
+        e.onclick = () => waehlen(a, g, e);
+        d.appendChild(e);
+      }
+      ziel.appendChild(d);
+    }
+  } catch (e) { ziel.innerHTML = ""; meldung("treffer", e.message, "fehler"); }
+}
+
+function waehlen(a, g, knopf) {
+  for (const x of document.querySelectorAll(".geb.gewaehlt")) x.classList.remove("gewaehlt");
+  knopf.classList.add("gewaehlt");
+  gewaehlt = { a, g };
+  $("entnahme").classList.remove("versteckt");
+  $("entnahme-titel").textContent = a.name;
+  $("entnahme-geb").textContent = `${g.behaelter || "Gebinde"} · ${g.lagerort || "ohne Lagerort"} · noch ${zahl(g.menge)} ${a.einheit || ""}`;
+  $("einheit").textContent = a.einheit || "Einheit";
+  $("menge").value = ""; $("bemerkung").value = ""; meldung("verbrauch-meldung", ""); $("melden").disabled = false;
+  $("entnahme").scrollIntoView({ behavior: "smooth" }); $("menge").focus();
+}
+
+$("melden").onclick = async () => {
+  if (!gewaehlt) return;
+  const m = parseFloat(String($("menge").value).replace(",", "."));
+  if (!(m > 0)) { meldung("verbrauch-meldung", "Bitte eine Menge größer 0 eingeben.", "fehler"); return; }
+  $("melden").disabled = true;
+  try {
+    const r = await rpc("verbrauch_melden", { geb_id: gewaehlt.g.geb_id, menge: m, bemerkung: $("bemerkung").value });
+    meldung("verbrauch-meldung", r.status === "leer" ? `Gemeldet – das Gebinde ist jetzt leer.`
+            : `Gemeldet – noch ${zahl(r.rest)} ${gewaehlt.a.einheit || ""}.`, "ok");
+    $("menge").value = ""; $("bemerkung").value = "";
+    if (r.status === "leer") { gewaehlt = null; $("melden").disabled = true; }
+    else {
+      gewaehlt.g.menge = r.rest;
+      $("entnahme-geb").textContent = `${gewaehlt.g.behaelter || "Gebinde"} · ${gewaehlt.g.lagerort || "ohne Lagerort"} · noch ${zahl(r.rest)} ${gewaehlt.a.einheit || ""}`;
+    }
+    suchen();
+  } catch (e) { meldung("verbrauch-meldung", e.message, "fehler"); }
+  finally { $("melden").disabled = !gewaehlt; }
+};
+
+// ---- DC-Foto
+let fotoDaten = null;
+
+async function verkleinern(datei) {
+  const bild = await createImageBitmap(datei, { imageOrientation: "from-image" });
+  const f = Math.min(1, FOTO_PX / Math.max(bild.width, bild.height));
+  const c = document.createElement("canvas");
+  c.width = Math.round(bild.width * f); c.height = Math.round(bild.height * f);
+  c.getContext("2d").drawImage(bild, 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", 0.9);
+}
+
+$("foto").onchange = async () => {
+  meldung("dc-meldung", ""); fotoDaten = null; $("hochladen").disabled = true;
+  const datei = $("foto").files[0];
+  if (!datei) { $("vorschau").classList.add("versteckt"); return; }
+  try {
+    fotoDaten = await verkleinern(datei);
+    $("vorschau").src = fotoDaten; $("vorschau").classList.remove("versteckt");
+    $("hochladen").disabled = false;
+  } catch (e) { meldung("dc-meldung", "Das Foto lässt sich nicht lesen.", "fehler"); }
+};
+
+$("hochladen").onclick = async () => {
+  if (!fotoDaten) return;
+  $("hochladen").disabled = true;
+  meldung("dc-meldung", "Wird hochgeladen …", "ok");
+  try {
+    const name = ($("foto").files[0] && $("foto").files[0].name || "Smartphone.jpg").replace(/\.[^.]+$/, "") + ".jpg";
+    const r = await rpc("dc_foto_hochladen", { foto_base64: fotoDaten, dateiname: name, titel: $("titel").value });
+    meldung("dc-meldung", `Hochgeladen (${Math.round(r.groesse / 1024)} kB). In Echinopsis unter Rhipsalis → DC als Entwurf.`, "ok");
+    fotoDaten = null; $("foto").value = ""; $("titel").value = ""; $("vorschau").classList.add("versteckt");
+  } catch (e) { meldung("dc-meldung", e.message, "fehler"); $("hochladen").disabled = false; }
+};
+
+start();
+</script>
+</body>
+</html>
