@@ -12,16 +12,16 @@
   :root { --gruen: #2e7d4f; --gruen-hell: #e8f4ec; --text: #1d2329; --grau: #5a6470; --linie: #d5dbe0; --rot: #b03a2e; --hg: #f6f7f8; }
   * { box-sizing: border-box; }
   body { margin: 0; font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; color: var(--text); background: var(--hg); font-size: 16px; }
-  header { background: var(--gruen); color: #fff; padding: 14px 16px 10px; padding-top: max(14px, env(safe-area-inset-top)); }
+  header { background: var(--gruen); color: #fff; padding: 14px 16px 10px; padding-top: max(14px, env(safe-area-inset-top)); display: flex; align-items: center; gap: 10px;
+           position: sticky; top: 0; z-index: 3; }
+  header .titel { flex: 1; min-width: 0; }
   header h1 { margin: 0; font-size: 20px; font-weight: 600; }
-  header .wer { font-size: 13px; opacity: .85; margin-top: 2px; }
-  nav { display: flex; background: #fff; border-bottom: 1px solid var(--linie); position: sticky; top: 0; z-index: 2; }
-  nav button { flex: 1; border: 0; background: none; padding: 12px 4px; font-size: 15px; color: var(--grau); border-bottom: 3px solid transparent; }
-  nav button.an { color: var(--gruen); border-bottom-color: var(--gruen); font-weight: 600; }
+  header .wer { font-size: 13px; opacity: .85; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #zurueck { border: 0; background: rgba(255,255,255,.15); color: #fff; font-size: 22px; width: 40px; height: 40px; border-radius: 10px; line-height: 1; }
   main { padding: 16px; max-width: 640px; margin: 0 auto; }
   .karte { background: #fff; border: 1px solid var(--linie); border-radius: 10px; padding: 14px; margin-bottom: 12px; }
   label { display: block; font-size: 13px; color: var(--grau); margin: 10px 0 4px; }
-  input, textarea { width: 100%; font-size: 16px; padding: 10px 12px; border: 1px solid var(--linie); border-radius: 8px; background: #fff; }
+  input, textarea, select { width: 100%; font-size: 16px; padding: 10px 12px; border: 1px solid var(--linie); border-radius: 8px; background: #fff; }
   button.haupt { width: 100%; margin-top: 14px; padding: 13px; font-size: 16px; font-weight: 600; color: #fff; background: var(--gruen); border: 0; border-radius: 8px; }
   button.haupt:disabled { opacity: .5; }
   button.leise { border: 1px solid var(--linie); background: #fff; border-radius: 8px; padding: 8px 12px; font-size: 14px; color: var(--grau); }
@@ -40,16 +40,46 @@
   .knopfreihe { display: flex; gap: 8px; }
   button.haupt.halb { margin-top: 0; flex: 1; }
   button.haupt.hell { background: #fff; color: var(--gruen); border: 1px solid var(--gruen); }
-  #scanner { margin-top: 10px; text-align: center; }
-  #scanner video { width: 100%; max-height: 60vh; border-radius: 8px; background: #000; display: block; margin-bottom: 8px; }
   .gruppe { font-size: 13px; font-weight: 600; color: var(--gruen); margin: 14px 0 2px; text-transform: uppercase; letter-spacing: .03em; }
   footer { text-align: center; font-size: 12px; color: var(--grau); padding: 20px 16px 28px; }
+  /* Kachel-Menue (ab Maurice 0.013): Titel gross neben dem Symbol, Programm kursiv darunter – wie im Startbildschirm von Echinopsis */
+  .kacheln { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .kachel { background: #fff; border: 1px solid var(--linie); border-radius: 14px; padding: 16px 12px 12px; text-align: left; color: var(--text);
+            display: flex; flex-direction: column; gap: 10px; min-height: 112px; font: inherit; }
+  .kachel:active { border-color: var(--k, var(--gruen)); background: #fafcfb; }
+  .kachel .oben { display: flex; align-items: center; gap: 10px; }
+  .kachel .sym { font-size: 30px; line-height: 1; }
+  .kachel .t { font-size: 17px; font-weight: 700; color: var(--k, var(--gruen)); line-height: 1.2; }
+  .kachel .n { font-size: 13px; font-style: italic; color: var(--k, var(--gruen)); text-align: center; opacity: .9; }
+  .kachel.zuletzt { border-color: #b9c2ca; }
+  /* Scanner als eigene Ebene (eine fuer alle Kacheln) */
+  #scanner { position: fixed; inset: 0; background: rgba(0,0,0,.9); z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; }
+  #scanner video { width: 100%; max-width: 560px; max-height: 70vh; border-radius: 10px; background: #000; }
+  #scanner .klein { color: #ddd; margin: 10px 0; text-align: center; }
+  .zeile { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; border-top: 1px solid var(--linie); font-size: 15px; }
+  .zeile:first-child { border-top: 0; }
+  .zeile .r { color: var(--grau); text-align: right; }
+  .ort { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-top: 8px; padding: 12px; font-size: 16px;
+         background: #fff; border: 1px solid var(--linie); border-radius: 10px; color: var(--text); }
+  .inv { border: 1px solid var(--linie); border-radius: 10px; padding: 10px 12px; margin-top: 10px; background: #fff; }
+  .inv.erledigt { background: var(--gruen-hell); border-color: #9fcfb0; }
+  .inv .aktionen { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 8px; }
+  .inv .aktionen button { padding: 9px 4px; font-size: 14px; border-radius: 8px; border: 1px solid var(--linie); background: #fff; color: var(--text); }
+  .inv .aktionen button.ja { border-color: var(--gruen); color: var(--gruen); font-weight: 600; }
+  .buchung { padding: 8px 10px; margin-top: 6px; border-radius: 8px; background: var(--hg); }
+  .buchung.jetzt { background: var(--gruen-hell); border: 1px solid #9fcfb0; }
+  .wahl { display: flex; gap: 8px; margin-bottom: 12px; }
+  .wahl button { flex: 1; padding: 9px; border-radius: 8px; border: 1px solid var(--linie); background: #fff; font-size: 15px; color: var(--grau); }
+  .wahl button.an { border-color: var(--gruen); color: var(--gruen); font-weight: 600; background: var(--gruen-hell); }
 </style>
 </head>
 <body>
 <header>
-  <h1>Matucana</h1>
-  <div class="wer" id="wer">ScienceHub auf dem Smartphone</div>
+  <button id="zurueck" class="versteckt" type="button" aria-label="Zurück zur Übersicht">‹</button>
+  <div class="titel">
+    <h1 id="kopf">Matucana</h1>
+    <div class="wer" id="wer">ScienceHub auf dem Smartphone</div>
+  </div>
 </header>
 
 <!-- Anmeldung -->
@@ -67,10 +97,10 @@
   </form>
 </main>
 
-<nav id="reiter" class="versteckt">
-  <button data-seite="verbrauch" class="an">Verbrauch melden</button>
-  <button data-seite="dc">DC-Foto</button>
-</nav>
+<!-- Kachel-Menue -->
+<main id="menu" class="versteckt">
+  <div class="kacheln" id="kacheln"></div>
+</main>
 
 <!-- Parodia: Verbrauch melden -->
 <main id="verbrauch" class="versteckt">
@@ -79,9 +109,7 @@
       <button class="haupt halb" id="scannen" type="button">📷 Scannen</button>
       <button class="haupt halb hell" id="alle" type="button">📋 Liste</button>
     </div>
-    <div id="scan-hinweis" class="klein versteckt" style="margin-top:8px"></div>
     <div id="scan-meldung"></div>
-    <div id="scanner" class="versteckt"><video id="video" playsinline muted></video><button class="leise" id="scan-stopp" type="button">Abbrechen</button></div>
     <label for="suche">… oder suchen (Name, CAS, Artikelnummer, Lagerort)</label>
     <input id="suche" type="search" placeholder="z. B. Methanol" autocomplete="off">
     <div id="treffer" style="margin-top:8px"></div>
@@ -96,6 +124,32 @@
     <button class="haupt" id="melden">Verbrauch melden</button>
     <div id="verbrauch-meldung"></div>
   </div>
+</main>
+
+<!-- Parodia: Inventur -->
+<main id="inventur" class="versteckt">
+  <div class="karte">
+    <div class="knopfreihe">
+      <button class="haupt halb" id="inv-scannen" type="button">📷 Gebinde scannen</button>
+      <button class="haupt halb hell" id="inv-orte-knopf" type="button">🗄 Lagerorte</button>
+    </div>
+    <div id="inv-meldung"></div>
+    <div class="klein" style="margin-top:10px">Bestand prüfen: Gebinde scannen oder einen Lagerort wählen, dann je Gebinde bestätigen oder die gezählte Menge eintragen.</div>
+  </div>
+  <div id="inv-orte"></div>
+  <div id="inv-liste"></div>
+</main>
+
+<!-- Obregonia: Proben -->
+<main id="proben" class="versteckt">
+  <div class="karte">
+    <button class="haupt" id="p-scannen" type="button" style="margin-top:0">📷 Proben-Etikett scannen</button>
+    <div id="p-meldung"></div>
+    <label for="p-suche">… oder suchen (Kennung, Bezeichnung, Art, Lagerort)</label>
+    <input id="p-suche" type="search" placeholder="z. B. Opuntia oder OB-2026-0041" autocomplete="off">
+    <div id="p-treffer" style="margin-top:8px"></div>
+  </div>
+  <div class="karte versteckt" id="probe"></div>
 </main>
 
 <!-- Rhipsalis: DC-Foto -->
@@ -113,29 +167,51 @@
   </div>
 </main>
 
+<!-- Geraete: wer misst heute? -->
+<main id="geraete" class="versteckt">
+  <div class="wahl"><button id="g-heute" class="an" type="button">Heute</button><button id="g-woche" type="button">7 Tage</button></div>
+  <div id="g-liste"></div>
+</main>
+
+<div id="scanner" class="versteckt">
+  <video id="video" playsinline muted></video>
+  <div class="klein" id="scan-text">Code in den Rahmen halten</div>
+  <button class="leise" id="scan-stopp" type="button">Abbrechen</button>
+</div>
+
 <footer>
   <div id="abmelden-zeile" class="versteckt"><button class="leise" id="abmelden">Abmelden</button></div>
-  <div style="margin-top:10px">Matucana · Schnittstelle <span id="version">Maurice 0.012</span> · ScienceHub, CAU Kiel</div>
+  <div style="margin-top:10px">Matucana · Schnittstelle <span id="version">Maurice 0.013</span> · ScienceHub, CAU Kiel</div>
 </footer>
 
 <!-- Scanner fuer QR, DataMatrix (GS1) und Strichcodes, auch auf dem iPhone (ZXing, MIT-Lizenz) -->
 <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
 <script>
 "use strict";
-const VERSION = "Maurice 0.012";
+const VERSION = "Maurice 0.013";
 const FOTO_PX = 2400;   // laengste Kante nach dem Verkleinern
 let K = null;           // {url, apikey} aus konfig.json
 let sitzung = null;     // {access_token, refresh_token, laeuft_ab}
+let ich = null;         // {name, rolle}
 const $ = id => document.getElementById(id);
+
+// Kacheln (ab Maurice 0.013): Titel, Programm, Farbe wie in Echinopsis; die zuletzt geoeffnete Kachel oeffnet sich beim naechsten Aufruf
+const KACHELN = [
+  { id: "verbrauch", sym: "🧪", titel: "Verbrauch melden", prog: "Parodia", farbe: "#b07a00" },
+  { id: "inventur", sym: "📦", titel: "Inventur", prog: "Parodia", farbe: "#b07a00" },
+  { id: "proben", sym: "🌵", titel: "Proben", prog: "Obregonia", farbe: "#2e7d32" },
+  { id: "dc", sym: "📷", titel: "DC-Foto", prog: "Rhipsalis", farbe: "#5d8a2e" },
+  { id: "geraete", sym: "📅", titel: "Wer misst heute?", prog: "Geräte (openIRIS)", farbe: "#1f4e9c" },
+];
+const SEITEN = ["anmeldung", "menu", ...KACHELN.map(k => k.id)];
 
 function meldung(ziel, text, art) {
   $(ziel).innerHTML = text ? `<div class="meldung ${art || "ok"}"></div>` : "";
   if (text) $(ziel).firstChild.textContent = text;
 }
-
-function speichern() {
-  try { sitzung ? localStorage.setItem("matucana_sitzung", JSON.stringify(sitzung)) : localStorage.removeItem("matucana_sitzung"); } catch (e) {}
-}
+const merken = (k, v) => { try { v === null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} };
+const lesen = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+function speichern() { merken("matucana_sitzung", sitzung ? JSON.stringify(sitzung) : null); }
 
 async function auth(art, body) {
   const r = await fetch(`${K.url}/auth/v1/token?grant_type=${art}`, {
@@ -162,11 +238,31 @@ async function rpc(funktion, argumente) {
 }
 
 function zeige(seite) {
-  for (const id of ["anmeldung", "verbrauch", "dc"]) $(id).classList.toggle("versteckt", id !== seite);
-  $("reiter").classList.toggle("versteckt", seite === "anmeldung");
+  scanStoppen();
+  for (const id of SEITEN) $(id).classList.toggle("versteckt", id !== seite);
+  const k = KACHELN.find(x => x.id === seite);
+  $("zurueck").classList.toggle("versteckt", !k);
+  $("kopf").textContent = k ? k.titel : "Matucana";
   $("abmelden-zeile").classList.toggle("versteckt", seite === "anmeldung");
-  for (const b of document.querySelectorAll("nav button")) b.classList.toggle("an", b.dataset.seite === seite);
+  if (k) { merken("matucana_kachel", k.id); oeffnen[k.id] && oeffnen[k.id](); }
+  if (seite === "menu") kachelnZeichnen();
+  window.scrollTo(0, 0);
 }
+const oeffnen = {};   // je Kachel: was beim Oeffnen geladen wird
+
+function kachelnZeichnen() {
+  const z = $("kacheln"), zuletzt = lesen("matucana_kachel");
+  z.innerHTML = "";
+  for (const k of KACHELN) {
+    const b = document.createElement("button"); b.type = "button"; b.className = "kachel" + (k.id === zuletzt ? " zuletzt" : "");
+    b.style.setProperty("--k", k.farbe);
+    b.innerHTML = '<div class="oben"><span class="sym"></span><span class="t"></span></div><div class="n"></div>';
+    b.querySelector(".sym").textContent = k.sym; b.querySelector(".t").textContent = k.titel; b.querySelector(".n").textContent = k.prog;
+    b.onclick = () => zeige(k.id);
+    z.appendChild(b);
+  }
+}
+$("zurueck").onclick = () => zeige("menu");
 
 async function start() {
   try {
@@ -174,7 +270,7 @@ async function start() {
   } catch (e) {
     meldung("anmelde-meldung", "konfig.json fehlt – die Adresse des Servers ist nicht eingetragen.", "fehler"); zeige("anmeldung"); return;
   }
-  try { sitzung = JSON.parse(localStorage.getItem("matucana_sitzung") || "null"); } catch (e) { sitzung = null; }
+  try { sitzung = JSON.parse(lesen("matucana_sitzung") || "null"); } catch (e) { sitzung = null; }
   if (sitzung) {
     try { await angemeldet(); return; } catch (e) { sitzung = null; speichern(); }
   }
@@ -182,15 +278,23 @@ async function start() {
 }
 
 async function angemeldet() {
-  const ich = await rpc("ich");
+  ich = await rpc("ich");
   $("wer").textContent = `${ich.name} · ${ich.rolle === "lesen" ? "nur lesen" : ich.rolle === "admin" ? "Admin" : "Bearbeiter/in"}`;
-  zeige("verbrauch");
-  const g = gebindeAusText(location.hash);   // von einem QR-Etikett geoeffnet
-  if (g) gebindeOeffnen(g);
+  if (verweis(location.hash)) return;   // von einem QR-Etikett geoeffnet
+  const k = lesen("matucana_kachel");
+  zeige(KACHELN.some(x => x.id === k) ? k : "menu");
+}
+
+function verweis(t) {   // QR-Etiketten: #g=<Gebinde> (Parodia), #p=<Probe> (Obregonia)
+  const g = gebindeAusText(t), p = /[#?&]p=(\d+)/.exec(t || "");
+  if (location.hash) history.replaceState(null, "", location.pathname + location.search);   // neu laden oeffnet es nicht noch einmal
+  if (g) { zeige("verbrauch"); gebindeOeffnen(g); return true; }
+  if (p) { zeige("proben"); probeOeffnen("#p=" + p[1]); return true; }
+  return false;
 }
 
 function abmelden() {
-  sitzung = null; speichern();
+  sitzung = null; ich = null; speichern();
   $("wer").textContent = "ScienceHub auf dem Smartphone"; zeige("anmeldung");
 }
 
@@ -212,7 +316,39 @@ $("anmeldeform").addEventListener("submit", async ev => {
   } finally { $("anmelden").disabled = false; }
 });
 $("abmelden").onclick = abmelden;
-for (const b of document.querySelectorAll("nav button")) b.onclick = () => zeige(b.dataset.seite);
+
+// ---- Scanner (eine Ebene fuer alle Kacheln): QR, DataMatrix, Strichcodes -> Rueckruf mit dem Text
+let leser = null;
+function scanStoppen() {
+  try { if (leser) leser.reset(); } catch (e) {}
+  leser = null; $("scanner").classList.add("versteckt");
+}
+$("scan-stopp").onclick = scanStoppen;
+async function scannen(rueckruf, fehlerZiel, hinweis) {
+  meldung(fehlerZiel, "");
+  if (!window.ZXing || !navigator.mediaDevices) {
+    meldung(fehlerZiel, "Der Scanner ließ sich nicht laden (keine Internetverbindung?). QR-Etiketten lassen sich auch mit der Kamera-App öffnen.", "fehler"); return;
+  }
+  try {
+    const Z = window.ZXing, hinweise = new Map();
+    hinweise.set(Z.DecodeHintType.POSSIBLE_FORMATS, [Z.BarcodeFormat.QR_CODE, Z.BarcodeFormat.DATA_MATRIX, Z.BarcodeFormat.EAN_13,
+                 Z.BarcodeFormat.EAN_8, Z.BarcodeFormat.CODE_128, Z.BarcodeFormat.UPC_A]);
+    hinweise.set(Z.DecodeHintType.TRY_HARDER, true);
+    leser = new Z.BrowserMultiFormatReader(hinweise, 300);
+    $("scan-text").textContent = hinweis || "Code in den Rahmen halten";
+    $("scanner").classList.remove("versteckt");
+    await leser.decodeFromConstraints({ video: { facingMode: "environment" } }, $("video"), (ergebnis) => {
+      if (!ergebnis || !leser) return;
+      const text = ergebnis.getText();
+      scanStoppen();
+      if (navigator.vibrate) navigator.vibrate(60);
+      rueckruf(text);
+    });
+  } catch (e) {
+    scanStoppen();
+    meldung(fehlerZiel, "Die Kamera ließ sich nicht öffnen (" + e.message + "). Bitte den Zugriff auf die Kamera erlauben.", "fehler");
+  }
+}
 
 // ---- Verbrauch melden
 let gewaehlt = null, suchZeit = null;
@@ -266,14 +402,13 @@ $("alle").onclick = () => { listeAn = true; $("suche").value = ""; suchen(); };
 
 // ---- QR-Etiketten der Gebinde (Parodia): Inhalt <Adresse dieser App>#g=<geb_id>
 function gebindeAusText(t) {
-  const m = /[#?&]g=(\d+)/.exec(t || "") || /^\s*(\d+)\s*$/.exec(t || "");
+  const m = /[#?&]g=(\d+)/.exec(t || "");
   return m ? Number(m[1]) : null;
 }
 
 async function gebindeOeffnen(gid) {
   try {
     const a = await rpc("gebinde_holen", { geb_id: gid });
-    if (location.hash) history.replaceState(null, "", location.pathname + location.search);   // neu laden oeffnet es nicht noch einmal
     listeAn = false; $("suche").value = "";
     zeigeArtikel([a], false);
     const knopf = document.querySelector("#treffer .geb");
@@ -307,7 +442,8 @@ function gs1Lesen(t) {
 
 async function codeVerarbeiten(text) {
   const gid = gebindeAusText(text);   // eigenes QR-Etikett
-  if (gid && /[#?&]g=\d+/.test(text)) { await gebindeOeffnen(gid); return; }
+  if (gid) { await gebindeOeffnen(gid); return; }
+  if (/[#?&]p=\d+/.test(text)) { zeige("proben"); probeOeffnen(text); return; }   // versehentlich ein Proben-Etikett
   const gs = gs1Lesen(text);
   const code = gs ? gs.gtin : String(text).trim(), charge = gs ? gs.charge : null;
   try {
@@ -322,7 +458,7 @@ async function codeVerarbeiten(text) {
   } catch (e) { meldung("treffer", e.message, "fehler"); }
 }
 
-function zuordnenAnbieten(code, charge) {   // unbekannter Code: einmal einem Artikel zuordnen
+function zuordnenAnbieten(code, charge, nachher) {   // unbekannter Code: einmal einem Artikel zuordnen
   const ziel = $("treffer"); ziel.innerHTML = "";
   const k = document.createElement("div"); k.className = "meldung ok";
   k.textContent = `Neuer Hersteller-Code ${code}${charge ? ` (Charge ${charge})` : ""}. Zu welchem Artikel gehört er? Einmal zuordnen – danach findet ein Scan ihn direkt.`;
@@ -347,39 +483,8 @@ function zuordnenAnbieten(code, charge) {   // unbekannter Code: einmal einem Ar
   eingabe.focus();
 }
 
-let leser = null;
-function scanStoppen() {
-  try { if (leser) leser.reset(); } catch (e) {}
-  leser = null; $("scanner").classList.add("versteckt");
-}
-$("scan-stopp").onclick = scanStoppen;
-$("scannen").onclick = async () => {
-  $("scan-hinweis").classList.add("versteckt"); meldung("scan-meldung", "");
-  if (!window.ZXing || !navigator.mediaDevices) {
-    $("scan-hinweis").textContent = "Der Scanner ließ sich nicht laden (keine Internetverbindung?). QR-Etiketten lassen sich auch mit der Kamera-App öffnen.";
-    $("scan-hinweis").classList.remove("versteckt"); return;
-  }
-  try {
-    const Z = window.ZXing, hinweise = new Map();
-    hinweise.set(Z.DecodeHintType.POSSIBLE_FORMATS, [Z.BarcodeFormat.QR_CODE, Z.BarcodeFormat.DATA_MATRIX, Z.BarcodeFormat.EAN_13,
-                 Z.BarcodeFormat.EAN_8, Z.BarcodeFormat.CODE_128, Z.BarcodeFormat.UPC_A]);
-    hinweise.set(Z.DecodeHintType.TRY_HARDER, true);
-    leser = new Z.BrowserMultiFormatReader(hinweise, 300);
-    $("scanner").classList.remove("versteckt");
-    await leser.decodeFromConstraints({ video: { facingMode: "environment" } }, $("video"), (ergebnis) => {
-      if (!ergebnis || !leser) return;
-      const text = ergebnis.getText();
-      scanStoppen();
-      if (navigator.vibrate) navigator.vibrate(60);
-      codeVerarbeiten(text);
-    });
-  } catch (e) {
-    scanStoppen();
-    $("scan-hinweis").textContent = "Die Kamera ließ sich nicht öffnen (" + e.message + "). Bitte den Zugriff auf die Kamera erlauben.";
-    $("scan-hinweis").classList.remove("versteckt");
-  }
-};
-window.addEventListener("hashchange", () => { const g = gebindeAusText(location.hash); if (g && sitzung) { zeige("verbrauch"); gebindeOeffnen(g); } });
+$("scannen").onclick = () => scannen(codeVerarbeiten, "scan-meldung", "Gebinde-Etikett oder Hersteller-Code");
+window.addEventListener("hashchange", () => { if (sitzung) verweis(location.hash); });
 
 function waehlen(a, g, knopf) {
   for (const x of document.querySelectorAll(".geb.gewaehlt")) x.classList.remove("gewaehlt");
@@ -412,6 +517,189 @@ $("melden").onclick = async () => {
   } catch (e) { meldung("verbrauch-meldung", e.message, "fehler"); }
   finally { $("melden").disabled = !gewaehlt; }
 };
+
+// ---- Inventur (Parodia): Lagerort waehlen oder Gebinde scannen, je Gebinde bestaetigen / zaehlen / leer / nicht gefunden
+let invOrt = null;
+oeffnen.inventur = () => { if (!invOrt) invOrteZeigen(); };
+$("inv-orte-knopf").onclick = () => { invOrt = null; $("inv-liste").innerHTML = ""; invOrteZeigen(); };
+
+async function invOrteZeigen() {
+  meldung("inv-meldung", "");
+  const z = $("inv-orte"); z.innerHTML = '<div class="klein">Lade Lagerorte …</div>';
+  try {
+    const orte = await rpc("inventur_lagerorte");
+    z.innerHTML = orte.length ? "" : '<div class="klein">Keine offenen Gebinde.</div>';
+    for (const o of orte) {
+      const b = document.createElement("button"); b.type = "button"; b.className = "ort";
+      b.innerHTML = "<span></span><span class='klein'></span>"; b.firstChild.textContent = o.lagerort; b.lastChild.textContent = `${o.anzahl} Gebinde`;
+      b.onclick = () => invListe(o.lagerort);
+      z.appendChild(b);
+    }
+  } catch (e) { z.innerHTML = ""; meldung("inv-meldung", e.message, "fehler"); }
+}
+
+async function invListe(ort) {
+  invOrt = ort; $("inv-orte").innerHTML = "";
+  const z = $("inv-liste"); z.innerHTML = '<div class="klein">Lade …</div>';
+  try {
+    const liste = await rpc("inventur_liste", { lagerort: ort });
+    z.innerHTML = "";
+    const h = document.createElement("div"); h.className = "gruppe"; h.textContent = ort; z.appendChild(h);
+    for (const g of liste) z.appendChild(invKarte(g));
+    if (!liste.length) z.insertAdjacentHTML("beforeend", '<div class="klein">Keine offenen Gebinde an diesem Ort.</div>');
+  } catch (e) { z.innerHTML = ""; meldung("inv-meldung", e.message, "fehler"); }
+}
+
+const heuteText = () => new Date().toLocaleDateString("sv-SE");
+function invKarte(g) {
+  const d = document.createElement("div");
+  d.className = "inv" + (g.gezaehlt && g.gezaehlt.slice(0, 10) === heuteText() ? " erledigt" : ""); d.id = "inv-" + g.geb_id;
+  d.innerHTML = '<b></b><div class="klein a"></div><div class="klein b"></div><div class="aktionen"></div><div class="eingabe versteckt"></div><div class="m"></div>';
+  d.querySelector("b").textContent = g.name;
+  d.querySelector(".a").textContent = [g.behaelter, g.charge ? "Ch. " + g.charge : "", g.verfall ? "verw. bis " + g.verfall : "", g.cas].filter(Boolean).join(" · ");
+  d.querySelector(".b").textContent = `erfasst: ${zahl(g.menge)} ${g.einheit || ""} (${g.status})` + (g.gezaehlt ? ` · gezählt ${g.gezaehlt.slice(0, 10)}` : "");
+  const akt = d.querySelector(".aktionen"), ein = d.querySelector(".eingabe");
+  const melden = async (ergebnis, menge) => {
+    try {
+      const r = await rpc("inventur_melden", { geb_id: g.geb_id, ergebnis, menge: menge ?? null });
+      g.menge = r.menge; g.status = r.status; g.gezaehlt = r.gezaehlt;
+      d.classList.add("erledigt"); ein.classList.add("versteckt");
+      d.querySelector(".b").textContent = `jetzt: ${zahl(r.menge)} ${g.einheit || ""} (${r.status}) · gezählt ${r.gezaehlt.slice(0, 10)}`;
+      meldung(d.querySelector(".m").id = "m-" + g.geb_id, "", "ok");
+    } catch (e) { const m = d.querySelector(".m"); m.id = "m-" + g.geb_id; meldung(m.id, e.message, "fehler"); }
+  };
+  for (const [text, fn, klasse] of [["✓ stimmt", () => melden("stimmt"), "ja"], ["Menge …", () => { ein.classList.toggle("versteckt"); ein.querySelector("input").focus(); }, ""],
+                                    ["leer", () => melden("leer"), ""], ["fehlt", () => melden("fehlt"), ""]]) {
+    const b = document.createElement("button"); b.type = "button"; b.textContent = text; if (klasse) b.className = klasse; b.onclick = fn; akt.appendChild(b);
+  }
+  ein.innerHTML = `<label>Gezählte Menge (${g.einheit || "Einheit"})</label><div class="knopfreihe"><input type="number" inputmode="decimal" min="0" step="any">` +
+                  '<button class="leise" type="button">OK</button></div>';
+  ein.querySelector("button").onclick = () => {
+    const m = parseFloat(String(ein.querySelector("input").value).replace(",", "."));
+    if (!(m >= 0)) { const x = d.querySelector(".m"); x.id = "m-" + g.geb_id; meldung(x.id, "Bitte eine Menge (0 oder mehr) eingeben.", "fehler"); return; }
+    melden("menge", m);
+  };
+  return d;
+}
+
+$("inv-scannen").onclick = () => scannen(async text => {
+  const gid = gebindeAusText(text);
+  try {
+    let liste = [];
+    if (gid) {
+      const a = await rpc("gebinde_holen", { geb_id: gid });
+      liste = a.gebinde.map(g => Object.assign({ name: a.name, einheit: a.einheit, cas: a.cas }, g));
+    } else {
+      const gs = gs1Lesen(text), r = await rpc("code_suchen", { code: gs ? gs.gtin : String(text).trim(), charge: gs ? gs.charge : null });
+      if (r.unbekannt) { meldung("inv-meldung", "Unbekannter Hersteller-Code – einmal unter „Verbrauch melden“ einem Artikel zuordnen.", "fehler"); return; }
+      liste = (r.gebinde || []).filter(g => !r.treffer || g.geb_id === r.treffer).map(g => Object.assign({ name: r.name, einheit: r.einheit, cas: r.cas }, g));
+    }
+    const da = liste.length === 1 && document.getElementById("inv-" + liste[0].geb_id);
+    if (da) { da.scrollIntoView({ behavior: "smooth", block: "center" }); da.style.outline = "2px solid var(--gruen)"; return; }
+    invOrt = null; $("inv-orte").innerHTML = ""; const z = $("inv-liste"); z.innerHTML = "";
+    for (const g of liste) z.appendChild(invKarte(g));
+    if (!liste.length) meldung("inv-meldung", "Dazu gibt es kein offenes Gebinde.", "fehler");
+  } catch (e) { meldung("inv-meldung", e.message, "fehler"); }
+}, "inv-meldung", "Gebinde-Etikett oder Hersteller-Code");
+
+// ---- Proben (Obregonia): Etikett #p=<probe_id>, Kennung (auch fruehere) oder Suche; Lagerort aendern
+let pZeit = null, lagerorte = null;
+$("p-scannen").onclick = () => scannen(probeOeffnen, "p-meldung", "Proben-Etikett (QR-Code oder Kennung)");
+$("p-suche").addEventListener("input", () => { clearTimeout(pZeit); pZeit = setTimeout(probenSuchen, 300); });
+
+async function probenSuchen() {
+  const q = $("p-suche").value.trim(), z = $("p-treffer");
+  if (q.length < 2) { z.innerHTML = ""; return; }
+  try {
+    const liste = await rpc("proben_suchen", { q });
+    z.innerHTML = liste.length ? "" : '<div class="klein">Nichts gefunden.</div>';
+    for (const p of liste) {
+      const b = document.createElement("button"); b.type = "button"; b.className = "geb";
+      b.innerHTML = "<span></span><span class='klein'></span>";
+      b.firstChild.textContent = `${p.kennung} · ${p.bezeichnung || p.art || ""}`; b.lastChild.textContent = p.lagerort || "";
+      b.onclick = () => probeOeffnen(String(p.kennung));
+      z.appendChild(b);
+    }
+  } catch (e) { z.innerHTML = ""; meldung("p-meldung", e.message, "fehler"); }
+}
+
+async function probeOeffnen(text) {
+  meldung("p-meldung", "");
+  try { probeZeigen(await rpc("probe_holen", { p: String(text) })); }
+  catch (e) { $("probe").classList.add("versteckt"); meldung("p-meldung", e.message, "fehler"); }
+}
+
+function probeZeigen(p) {
+  const k = $("probe"); k.classList.remove("versteckt"); k.innerHTML = "";
+  const h = document.createElement("b"); h.style.fontSize = "18px"; h.textContent = p.kennung; k.appendChild(h);
+  const u = document.createElement("div"); u.className = "klein"; u.textContent = [p.bezeichnung, p.typ].filter(Boolean).join(" · "); k.appendChild(u);
+  const tab = document.createElement("div"); tab.style.marginTop = "10px";
+  for (const [l, v] of [["Art", [p.art, p.pflanzenteil].filter(Boolean).join(", ")], ["Status", p.status], ["Lagerort", p.lagerort || "–"],
+                        ["Menge", p.menge != null ? `${zahl(p.menge)} ${p.einheit || ""}` : ""], ["Projekt", p.projekt], ["verantwortlich", p.verantwortlich],
+                        ["abgeleitet von", p.eltern]]) {
+    if (!v) continue;
+    const z = document.createElement("div"); z.className = "zeile"; z.innerHTML = "<span></span><span class='r'></span>";
+    z.firstChild.textContent = l; z.lastChild.textContent = v; tab.appendChild(z);
+  }
+  k.appendChild(tab);
+  if (ich && ich.rolle !== "lesen") {   // Lagerort aendern
+    const box = document.createElement("div");
+    box.innerHTML = '<label>Neuer Lagerort</label><input list="p-orte" autocomplete="off"><datalist id="p-orte"></datalist><button class="haupt" type="button">Lagerort speichern</button><div id="p-ort-meldung"></div>';
+    const inp = box.querySelector("input"); inp.value = p.lagerort || "";
+    const dl = box.querySelector("datalist");
+    const fuellen = l => { for (const o of l) { const op = document.createElement("option"); op.value = o; dl.appendChild(op); } };
+    if (lagerorte) fuellen(lagerorte); else rpc("proben_lagerorte").then(l => { lagerorte = l; fuellen(l); }).catch(() => {});
+    box.querySelector("button").onclick = async () => {
+      try { const neu = await rpc("lagerort_setzen", { probe_id: p.probe_id, lagerort: inp.value }); lagerorte = null; probeZeigen(neu);
+            meldung("p-ort-meldung", "Lagerort gespeichert.", "ok"); }
+      catch (e) { meldung("p-ort-meldung", e.message, "fehler"); }
+    };
+    k.appendChild(box);
+  }
+  for (const [titel, liste, zeile] of [["Messungen", p.messungen, m => [m.kennung, [m.art, m.datum].filter(Boolean).join(" · ")]],
+                                       ["Verlauf", p.verlauf, v => [`${v.zeit.replace("T", " ")} · ${v.wer || ""}`, `${v.art}: ${v.text || ""}`]]]) {
+    if (!liste || !liste.length) continue;
+    const g = document.createElement("div"); g.className = "gruppe"; g.textContent = titel; k.appendChild(g);
+    for (const x of liste) {
+      const [a, b] = zeile(x), d = document.createElement("div"); d.className = "zeile"; d.style.display = "block";
+      d.innerHTML = "<div></div><div class='klein'></div>"; d.firstChild.textContent = a; d.lastChild.textContent = b; k.appendChild(d);
+    }
+  }
+  k.scrollIntoView({ behavior: "smooth" });
+}
+
+// ---- Wer misst heute? (openIRIS-Buchungen aus ScienceHub)
+let gTage = 1;
+oeffnen.geraete = () => buchungenZeigen();
+$("g-heute").onclick = () => { gTage = 1; buchungenZeigen(); };
+$("g-woche").onclick = () => { gTage = 7; buchungenZeigen(); };
+
+async function buchungenZeigen() {
+  $("g-heute").classList.toggle("an", gTage === 1); $("g-woche").classList.toggle("an", gTage === 7);
+  const z = $("g-liste"); z.innerHTML = '<div class="klein">Lade …</div>';
+  try {
+    const geraete = await rpc("buchungen", { tage: gTage });
+    z.innerHTML = geraete.length ? "" : '<div class="karte klein">In ScienceHub sind keine Geräte mit openIRIS-Kalender eingetragen.</div>';
+    const jetzt = new Date(), tag = d => new Date(d.replace(" ", "T")).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" });
+    for (const g of geraete) {
+      const k = document.createElement("div"); k.className = "karte";
+      k.innerHTML = "<b></b><div class='klein'></div>"; k.firstChild.textContent = g.name;
+      k.lastChild.textContent = [g.typ, g.stand ? "Stand " + g.stand.replace("T", " ") : ""].filter(Boolean).join(" · ");
+      const bs = g.buchungen || [];
+      if (!bs.length) k.insertAdjacentHTML("beforeend", `<div class="klein" style="margin-top:8px">${gTage === 1 ? "Heute" : "In den nächsten 7 Tagen"} nicht gebucht.</div>`);
+      for (const b of bs) {
+        const von = new Date(b.beginn.replace(" ", "T")), bis = new Date((b.ende || b.beginn).replace(" ", "T"));
+        const d = document.createElement("div"); d.className = "buchung" + (von <= jetzt && jetzt < bis ? " jetzt" : "");
+        d.innerHTML = "<div></div><div class='klein'></div>";
+        d.firstChild.textContent = `${gTage > 1 ? tag(b.beginn) + " · " : ""}${b.beginn.slice(11, 16)}–${(b.ende || "").slice(11, 16)} · ${b.person || "ohne Namen"}`
+                                   + (von <= jetzt && jetzt < bis ? " (läuft gerade)" : "");
+        d.lastChild.textContent = b.titel || "";
+        k.appendChild(d);
+      }
+      z.appendChild(k);
+    }
+  } catch (e) { z.innerHTML = ""; const m = document.createElement("div"); m.id = "g-meldung"; z.appendChild(m); meldung("g-meldung", e.message, "fehler"); }
+}
 
 // ---- DC-Foto
 let fotoDaten = null;
