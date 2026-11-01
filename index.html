@@ -140,6 +140,20 @@
   <div id="inv-liste"></div>
 </main>
 
+<!-- Parodia: Wareneingang (ab Maurice 0.016) -->
+<main id="wareneingang" class="versteckt">
+  <div class="karte">
+    <div class="knopfreihe">
+      <button class="haupt halb" id="we-scannen" type="button">📷 Lieferung scannen</button>
+      <button class="haupt halb hell" id="we-liste-knopf" type="button">🔄 Liste</button>
+    </div>
+    <div id="we-meldung"></div>
+    <div class="klein" style="margin-top:10px">Lieferung bestätigen: den Hersteller-Code eines gelieferten Gebindes scannen oder die Position antippen. Danach Anzahl und Lagerort prüfen und buchen.</div>
+  </div>
+  <div class="karte versteckt" id="we-buchen"></div>
+  <div id="we-liste"></div>
+</main>
+
 <!-- Obregonia: Proben -->
 <main id="proben" class="versteckt">
   <div class="karte">
@@ -180,15 +194,17 @@
 </div>
 
 <footer>
-  <div id="abmelden-zeile" class="versteckt"><button class="leise" id="abmelden">Abmelden</button></div>
-  <div style="margin-top:10px">Matucana · Schnittstelle <span id="version">Maurice 0.013</span> · ScienceHub, CAU Kiel</div>
+  <div class="knopfreihe" style="justify-content:center"><span id="abmelden-zeile" class="versteckt"><button class="leise" id="abmelden">Abmelden</button></span>
+    <button class="leise" id="sprache" type="button">🇬🇧 English</button></div>
+  <div style="margin-top:10px">Matucana · Schnittstelle <span id="version">Maurice 0.016</span> · ScienceHub, CAU Kiel</div>
 </footer>
 
 <!-- Scanner fuer QR, DataMatrix (GS1) und Strichcodes, auch auf dem iPhone (ZXing, MIT-Lizenz) -->
-<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"
+        integrity="sha256-18yPad1wvc86wAya5XK/KsufQTK6N5xy34QuTbkYZS0=" crossorigin="anonymous"></script>
 <script>
 "use strict";
-const VERSION = "Maurice 0.013";
+const VERSION = "Maurice 0.016";   // 0.016: Kachel Wareneingang (Lieferung per Scan bestaetigen, Teillieferung, Artikel waehlen/anlegen); 0.015: Gebinde ohne Etikett per Hersteller-Code erfassen (zuordnen oder neu anlegen), fremde Codes abgewiesen, Englisch umschaltbar; 0.014: Einheit nur als Text (A8), ZXing mit Pruefsumme (SRI)
 const FOTO_PX = 2400;   // laengste Kante nach dem Verkleinern
 let K = null;           // {url, apikey} aus konfig.json
 let sitzung = null;     // {access_token, refresh_token, laeuft_ab}
@@ -199,6 +215,7 @@ const $ = id => document.getElementById(id);
 const KACHELN = [
   { id: "verbrauch", sym: "🧪", titel: "Verbrauch melden", prog: "Parodia", farbe: "#b07a00" },
   { id: "inventur", sym: "📦", titel: "Inventur", prog: "Parodia", farbe: "#b07a00" },
+  { id: "wareneingang", sym: "🚚", titel: "Wareneingang", prog: "Parodia", farbe: "#b07a00" },
   { id: "proben", sym: "🌵", titel: "Proben", prog: "Obregonia", farbe: "#2e7d32" },
   { id: "dc", sym: "📷", titel: "DC-Foto", prog: "Rhipsalis", farbe: "#5d8a2e" },
   { id: "geraete", sym: "📅", titel: "Wer misst heute?", prog: "Geräte (openIRIS)", farbe: "#1f4e9c" },
@@ -352,7 +369,7 @@ async function scannen(rueckruf, fehlerZiel, hinweis) {
 
 // ---- Verbrauch melden
 let gewaehlt = null, suchZeit = null;
-const zahl = x => (x === null || x === undefined) ? "–" : Number(x).toLocaleString("de-DE", { maximumFractionDigits: 3 });
+const zahl = x => (x === null || x === undefined) ? "–" : Number(x).toLocaleString(lesen("matucana_sprache") === "en" ? "en-GB" : "de-DE", { maximumFractionDigits: 3 });
 
 $("suche").addEventListener("input", () => {
   clearTimeout(suchZeit);
@@ -407,14 +424,18 @@ function gebindeAusText(t) {
 }
 
 async function gebindeOeffnen(gid) {
-  try {
-    const a = await rpc("gebinde_holen", { geb_id: gid });
+  try { gebindeZeigen(await rpc("gebinde_holen", { geb_id: gid })); }
+  catch (e) { meldung("treffer", e.message, "fehler"); }
+}
+
+function gebindeZeigen(a) {   // Artikel mit genau einem Gebinde (gebinde_holen) zum Melden waehlen
+  {
     listeAn = false; $("suche").value = "";
     zeigeArtikel([a], false);
     const knopf = document.querySelector("#treffer .geb");
     if (a.gebinde[0].status === "voll" || a.gebinde[0].status === "angebrochen") waehlen(a, a.gebinde[0], knopf);
     else meldung("treffer", `${a.name}, ${a.gebinde[0].behaelter || "Gebinde"}: schon als „${a.gebinde[0].status}“ gemeldet.`, "fehler");
-  } catch (e) { meldung("treffer", e.message, "fehler"); }
+  }
 }
 
 // ---- Hersteller-Codes: GS1 (DataMatrix/GS1-128, z. B. Merck/Sigma) mit GTIN (01), Charge (10), Verfall (17); sonst EAN oder der Text
@@ -444,11 +465,17 @@ async function codeVerarbeiten(text) {
   const gid = gebindeAusText(text);   // eigenes QR-Etikett
   if (gid) { await gebindeOeffnen(gid); return; }
   if (/[#?&]p=\d+/.test(text)) { zeige("proben"); probeOeffnen(text); return; }   // versehentlich ein Proben-Etikett
+  const fremd = fremderCode(text);
+  if (fremd) { $("treffer").innerHTML = ""; meldung("scan-meldung", fremd, "fehler"); return; }
   const gs = gs1Lesen(text);
   const code = gs ? gs.gtin : String(text).trim(), charge = gs ? gs.charge : null;
   try {
     const r = await rpc("code_suchen", { code, charge });
-    if (r.unbekannt) { zuordnenAnbieten(r.code, charge); return; }
+    if (r.unbekannt) {   // ab 0.015: zuordnen oder neu anlegen
+      codeErfassen("treffer", r.code, gs, { inventur: false, ort: "", fertig: a => {
+        gebindeZeigen(a); meldung("scan-meldung", `Erfasst: ${a.name}, ${a.gebinde[0].behaelter || "Gebinde"} – der Code ist jetzt zugeordnet.`, "ok"); } });
+      return;
+    }
     listeAn = false; $("suche").value = "";
     zeigeArtikel([r], false);
     const knoepfe = [...document.querySelectorAll("#treffer .geb")];
@@ -458,29 +485,115 @@ async function codeVerarbeiten(text) {
   } catch (e) { meldung("treffer", e.message, "fehler"); }
 }
 
-function zuordnenAnbieten(code, charge, nachher) {   // unbekannter Code: einmal einem Artikel zuordnen
-  const ziel = $("treffer"); ziel.innerHTML = "";
-  const k = document.createElement("div"); k.className = "meldung ok";
-  k.textContent = `Neuer Hersteller-Code ${code}${charge ? ` (Charge ${charge})` : ""}. Zu welchem Artikel gehört er? Einmal zuordnen – danach findet ein Scan ihn direkt.`;
-  ziel.appendChild(k);
-  const eingabe = document.createElement("input"); eingabe.type = "search"; eingabe.placeholder = "Artikel suchen"; eingabe.style.marginTop = "8px";
-  const liste = document.createElement("div");
-  ziel.append(eingabe, liste);
+// ---- Gebinde ohne Etikett ueber den Hersteller-Code erfassen (ab Maurice 0.015, Nutzerwunsch 31.10.2026): ein noch nicht
+// zugeordneter Code wird an vorhandenen Bestand gehaengt (Gebinde antippen) oder es entsteht ein neues Gebinde bzw. ein neuer Artikel
+const TYPEN = ["Chemikalie", "Lösemittel", "Verbrauchsmaterial", "Gerät"], EINHEITEN = ["g", "kg", "mg", "mL", "L", "Stück", "Packung"];
+function verfallIso(v) {   // GS1 (17) JJMMTT -> JJJJ-MM-TT; Tag 00 = Monatsende
+  const m = /^(\d{2})(\d{2})(\d{2})$/.exec(v || "");
+  if (!m) return null;
+  const j = 2000 + Number(m[1]), t = m[3] === "00" ? new Date(j, Number(m[2]), 0).getDate() : Number(m[3]);
+  return `${j}-${m[2]}-${String(t).padStart(2, "0")}`;
+}
+function fremderCode(text) {   // nie als Hersteller-Code eines Artikels speichern
+  if (/[#?&]p=\d+/.test(text)) return "Das ist ein Proben-Etikett – bitte unter „Proben“ scannen.";
+  if (/^https?:\/\//i.test(String(text).trim()) && !gebindeAusText(text)) return "Das ist eine Internet-Adresse, kein Gebinde-Etikett und kein Hersteller-Code.";
+  return null;
+}
+function feld(eltern, text, el) { const l = document.createElement("label"); l.textContent = text; eltern.append(l, el); return el; }
+function eingabe(typ, wert) {
+  const i = document.createElement("input"); i.type = typ;
+  if (typ === "number") { i.inputMode = "decimal"; i.min = "0"; i.step = "any"; }
+  if (wert !== null && wert !== undefined) i.value = wert;
+  return i;
+}
+function auswahl(werte, wert) {
+  const s = document.createElement("select");
+  for (const w of werte) { const o = document.createElement("option"); o.value = w; o.textContent = w; s.appendChild(o); }
+  if (wert && werte.includes(wert)) s.value = wert;
+  return s;
+}
+const zahlAus = i => { const v = parseFloat(String(i.value).replace(",", ".")); return v > 0 ? v : null; };
+
+function codeErfassen(zielId, code, gs, opt) {   // opt: { inventur, ort, fertig(artikelMitGebinde, neu) }
+  const ziel = $(zielId); ziel.innerHTML = "";
+  const charge = gs ? gs.charge : null, verfall = gs ? verfallIso(gs.verfall) : null;
+  const kopf = document.createElement("div"); kopf.className = "meldung ok";
+  kopf.textContent = `Code ${code} ist noch nicht zugeordnet` + (charge ? ` · Charge ${charge}` : "") + (verfall ? ` · verw. bis ${verfall}` : "") + ".";
+  ziel.appendChild(kopf);
+  if (!ich || ich.rolle === "lesen") {
+    const k = document.createElement("div"); k.className = "klein"; k.style.marginTop = "8px";
+    k.textContent = "Mit einem Nur-Lesen-Konto lässt sich nichts erfassen."; ziel.appendChild(k); return;
+  }
+  const box = document.createElement("div"); box.className = "karte"; box.style.marginTop = "10px"; ziel.appendChild(box);
+  const hin = document.createElement("div"); hin.className = "klein";
+  hin.textContent = "Gebinde ohne Etikett erfassen: zu vorhandenem Bestand hinzufügen oder als neuen Artikel anlegen. Danach findet jeder Scan dieses Codes den Artikel.";
+  box.appendChild(hin);
+  const such = feld(box, "Zu vorhandenem Bestand – Artikel suchen", eingabe("search")); such.placeholder = "Name, CAS oder Artikelnummer";
+  const liste = document.createElement("div"); box.appendChild(liste);
+  const neuKnopf = document.createElement("button"); neuKnopf.type = "button"; neuKnopf.className = "haupt hell"; neuKnopf.textContent = "＋ Neuer Artikel";
+  const form = document.createElement("div"); form.className = "versteckt";
+  const mel = document.createElement("div"); mel.id = zielId + "-erfassen";
+  box.append(neuKnopf, form, mel);
+  const fehler = e => meldung(mel.id, e.message, "fehler");
+  const aufruf = async (fn, arg, neu) => {
+    meldung(mel.id, "");
+    try { opt.fertig(await rpc(fn, arg), neu); } catch (e) { fehler(e); }
+  };
   let zeit = null;
-  eingabe.oninput = () => { clearTimeout(zeit); zeit = setTimeout(async () => {
-    const q = eingabe.value.trim(); liste.innerHTML = "";
+  such.oninput = () => { clearTimeout(zeit); zeit = setTimeout(async () => {
+    const q = such.value.trim(); liste.innerHTML = "";
     if (q.length < 2) return;
-    for (const a of await rpc("artikel_suchen", { q }).catch(() => [])) {
-      const b = document.createElement("button"); b.className = "geb"; b.type = "button";
-      b.innerHTML = "<span></span><span>zuordnen</span>"; b.firstChild.textContent = `${a.name}${a.cas ? " · " + a.cas : ""}`;
-      b.onclick = async () => {
-        try { await rpc("code_zuordnen", { code, art_id: a.art_id }); await codeVerarbeiten(charge ? `(01)${code}(10)${charge}` : code); }
-        catch (e) { meldung("treffer", e.message, "fehler"); }
+    let treffer = [];
+    try { treffer = await rpc("artikel_suchen", { q }); } catch (e) { fehler(e); return; }
+    if (!treffer.length) { liste.innerHTML = '<div class="klein" style="margin-top:6px">Nichts gefunden – dann „＋ Neuer Artikel“.</div>'; return; }
+    for (const a of treffer) {
+      const d = document.createElement("div"); d.className = "artikel";
+      const b = document.createElement("b"); b.textContent = a.name; d.appendChild(b);
+      const k = document.createElement("div"); k.className = "klein"; k.textContent = [a.typ, a.cas, a.artikelnummer].filter(Boolean).join(" · "); d.appendChild(k);
+      for (const g of a.gebinde || []) {   // vorhandenes Gebinde ohne Etikett: das ist es
+        const e = document.createElement("button"); e.className = "geb"; e.type = "button"; e.innerHTML = "<span></span><span></span>";
+        e.firstChild.textContent = `${g.behaelter || "Gebinde"} · ${g.lagerort || "ohne Lagerort"}${g.charge ? " · Ch. " + g.charge : ""} · ${zahl(g.menge)} ${a.einheit || ""}`;
+        e.lastChild.textContent = "das ist es";
+        e.onclick = () => aufruf("code_gebinde_zuordnen", { code, geb_id: g.geb_id, charge }, false);
+        d.appendChild(e);
+      }
+      const nb = document.createElement("button"); nb.type = "button"; nb.className = "leise"; nb.style.marginTop = "8px"; nb.textContent = "＋ neues Gebinde dieses Artikels";
+      const nf = document.createElement("div"); nf.className = "versteckt";
+      const menge = feld(nf, `Menge im Gebinde (${a.einheit || "Einheit"})`, eingabe("number", a.gebinde_menge));
+      const ort = feld(nf, "Lagerort", eingabe("text", opt.ort || a.lagerort || ""));
+      const ok = document.createElement("button"); ok.type = "button"; ok.className = "haupt"; ok.textContent = "Gebinde anlegen"; nf.appendChild(ok);
+      nb.onclick = () => { nf.classList.toggle("versteckt"); menge.focus(); };
+      ok.onclick = () => {
+        if (!zahlAus(menge)) { meldung(mel.id, "Bitte die Menge im Gebinde angeben (größer 0).", "fehler"); return; }
+        aufruf("gebinde_anlegen", { art_id: a.art_id, menge: zahlAus(menge), lagerort: ort.value, charge, verfall, code, inventur: !!opt.inventur }, true);
       };
-      liste.appendChild(b);
+      d.append(nb, nf);
+      liste.appendChild(d);
     }
   }, 300); };
-  eingabe.focus();
+  neuKnopf.onclick = () => {
+    if (form.childNodes.length) { form.classList.toggle("versteckt"); return; }
+    form.classList.remove("versteckt");
+    const name = feld(form, "Name *", eingabe("text"));
+    const typ = feld(form, "Typ", auswahl(TYPEN, "Chemikalie"));
+    const reihe = document.createElement("div"); reihe.className = "knopfreihe";
+    const l1 = document.createElement("div"), l2 = document.createElement("div"); l1.style.flex = "2"; l2.style.flex = "1"; reihe.append(l1, l2);
+    const groesse = feld(l1, "Gebindegröße *", eingabe("number")), einheit = feld(l2, "Einheit", auswahl(EINHEITEN, "mL"));
+    form.appendChild(reihe);
+    const ort = feld(form, "Lagerort", eingabe("text", opt.ort || ""));
+    const lief = feld(form, "Lieferant", eingabe("text")), nr = feld(form, "Artikelnummer", eingabe("text")), cas = feld(form, "CAS", eingabe("text"));
+    const ok = document.createElement("button"); ok.type = "button"; ok.className = "haupt"; ok.textContent = "Artikel mit Gebinde anlegen"; form.appendChild(ok);
+    const k = document.createElement("div"); k.className = "klein"; k.style.marginTop = "6px";
+    k.textContent = "GHS-Angaben, Mindestbestand und Sicherheitsdatenblatt danach in Parodia am PC ergänzen."; form.appendChild(k);
+    ok.onclick = () => {
+      if (!name.value.trim()) { meldung(mel.id, "Bitte einen Namen eingeben.", "fehler"); return; }
+      if (!zahlAus(groesse)) { meldung(mel.id, "Bitte die Gebindegröße angeben (größer 0).", "fehler"); return; }
+      aufruf("artikel_anlegen", { name: name.value, typ: typ.value, gebinde_menge: zahlAus(groesse), einheit: einheit.value, lagerort: ort.value,
+                                  lieferant: lief.value, artikelnummer: nr.value, cas: cas.value, charge, verfall, code, inventur: !!opt.inventur }, true);
+    };
+    name.focus();
+  };
+  such.focus();
 }
 
 $("scannen").onclick = () => scannen(codeVerarbeiten, "scan-meldung", "Gebinde-Etikett oder Hersteller-Code");
@@ -572,8 +685,10 @@ function invKarte(g) {
                                     ["leer", () => melden("leer"), ""], ["fehlt", () => melden("fehlt"), ""]]) {
     const b = document.createElement("button"); b.type = "button"; b.textContent = text; if (klasse) b.className = klasse; b.onclick = fn; akt.appendChild(b);
   }
-  ein.innerHTML = `<label>Gezählte Menge (${g.einheit || "Einheit"})</label><div class="knopfreihe"><input type="number" inputmode="decimal" min="0" step="any">` +
+  // A8 (Codepruefung 30.10.2026, ab Maurice 0.014): die Einheit kommt aus der Datenbank – nur als Text, nie als HTML einsetzen
+  ein.innerHTML = '<label></label><div class="knopfreihe"><input type="number" inputmode="decimal" min="0" step="any">' +
                   '<button class="leise" type="button">OK</button></div>';
+  ein.querySelector("label").textContent = `Gezählte Menge (${g.einheit || "Einheit"})`;
   ein.querySelector("button").onclick = () => {
     const m = parseFloat(String(ein.querySelector("input").value).replace(",", "."));
     if (!(m >= 0)) { const x = d.querySelector(".m"); x.id = "m-" + g.geb_id; meldung(x.id, "Bitte eine Menge (0 oder mehr) eingeben.", "fehler"); return; }
@@ -584,6 +699,8 @@ function invKarte(g) {
 
 $("inv-scannen").onclick = () => scannen(async text => {
   const gid = gebindeAusText(text);
+  const fremd = gid ? null : fremderCode(text);
+  if (fremd) { meldung("inv-meldung", fremd, "fehler"); return; }
   try {
     let liste = [];
     if (gid) {
@@ -591,7 +708,16 @@ $("inv-scannen").onclick = () => scannen(async text => {
       liste = a.gebinde.map(g => Object.assign({ name: a.name, einheit: a.einheit, cas: a.cas }, g));
     } else {
       const gs = gs1Lesen(text), r = await rpc("code_suchen", { code: gs ? gs.gtin : String(text).trim(), charge: gs ? gs.charge : null });
-      if (r.unbekannt) { meldung("inv-meldung", "Unbekannter Hersteller-Code – einmal unter „Verbrauch melden“ einem Artikel zuordnen.", "fehler"); return; }
+      if (r.unbekannt) {   // ab 0.015: gleich hier zuordnen oder neu anlegen
+        const ort = invOrt && invOrt !== "(ohne Lagerort)" ? invOrt : "";
+        invOrt = null; $("inv-orte").innerHTML = "";
+        codeErfassen("inv-liste", r.code, gs, { inventur: true, ort, fertig: (a, neu) => {
+          const z = $("inv-liste"); z.innerHTML = "";
+          z.appendChild(invKarte(Object.assign({ name: a.name, einheit: a.einheit, cas: a.cas }, a.gebinde[0], neu ? { gezaehlt: heuteText() + "T00:00" } : {})));
+          meldung("inv-meldung", neu ? `Neu erfasst und gezählt: ${a.name}, ${a.gebinde[0].behaelter || "Gebinde"}.`
+                                     : `Zugeordnet: ${a.name}, ${a.gebinde[0].behaelter || "Gebinde"} – jetzt bestätigen oder zählen.`, "ok"); } });
+        return;
+      }
       liste = (r.gebinde || []).filter(g => !r.treffer || g.geb_id === r.treffer).map(g => Object.assign({ name: r.name, einheit: r.einheit, cas: r.cas }, g));
     }
     const da = liste.length === 1 && document.getElementById("inv-" + liste[0].geb_id);
@@ -601,6 +727,161 @@ $("inv-scannen").onclick = () => scannen(async text => {
     if (!liste.length) meldung("inv-meldung", "Dazu gibt es kein offenes Gebinde.", "fehler");
   } catch (e) { meldung("inv-meldung", e.message, "fehler"); }
 }, "inv-meldung", "Gebinde-Etikett oder Hersteller-Code");
+
+// ---- Wareneingang (Parodia, ab Maurice 0.016, Nutzerwunsch 31.10.2026): bestellte/offene Positionen der Bestellliste; ein Scan des
+// Hersteller-Codes waehlt die Position (zugeordneter Artikel oder Artikelnummer), Buchen legt die Gebinde an (Teillieferung moeglich)
+let weListe = [], weCode = null, weGs = null;
+oeffnen.wareneingang = () => weLaden();
+$("we-liste-knopf").onclick = () => { weCode = null; weGs = null; meldung("we-meldung", ""); weLaden(); };
+const nrKurz = x => String(x || "").replace(/[^0-9A-Za-z]/g, "").toUpperCase();
+
+async function weLaden() {
+  $("we-buchen").classList.add("versteckt");
+  const z = $("we-liste"); z.innerHTML = '<div class="klein">Lade …</div>';
+  try { weListe = await rpc("lieferungen_offen"); } catch (e) { z.innerHTML = ""; meldung("we-meldung", e.message, "fehler"); return; }
+  weZeigen(weListe);
+}
+
+function weZeigen(liste) {
+  const z = $("we-liste"); z.innerHTML = "";
+  if (!liste.length) { z.innerHTML = '<div class="karte klein">Keine bestellten oder offenen Positionen.</div>'; return; }
+  let gruppe = null;
+  for (const p of liste) {
+    if (p.status !== gruppe) {
+      gruppe = p.status; const h = document.createElement("div"); h.className = "gruppe";
+      h.textContent = gruppe === "bestellt" ? "Bestellt" : "Offen (noch nicht als bestellt markiert)"; z.appendChild(h);
+    }
+    const b = document.createElement("button"); b.type = "button"; b.className = "ort";
+    b.innerHTML = "<span><span></span><br><span class='klein'></span></span><span class='klein'></span>";
+    b.firstChild.firstChild.textContent = p.bezeichnung || p.name || "?";
+    b.firstChild.lastChild.textContent = [p.lieferant, p.artikelnummer, p.bestellt_am ? "am " + p.bestellt_am : ""].filter(Boolean).join(" · ");
+    b.lastChild.textContent = `${zahl(p.menge)} ×`;
+    b.style.textAlign = "left";
+    b.onclick = () => weFormular(p);
+    z.appendChild(b);
+  }
+}
+
+function weFormular(p) {
+  const k = $("we-buchen"); k.classList.remove("versteckt"); k.innerHTML = "";
+  const t = document.createElement("b"); t.textContent = p.bezeichnung || p.name || "?"; k.appendChild(t);
+  const u = document.createElement("div"); u.className = "klein";
+  u.textContent = [p.lieferant, p.artikelnummer, `bestellt: ${zahl(p.menge)} ${p.verpackungseinheit || ""}`.trim()].filter(Boolean).join(" · ");
+  k.appendChild(u);
+  const artBox = document.createElement("div"), felder = document.createElement("div"), mel = document.createElement("div");
+  mel.id = "we-buchen-meldung"; k.append(artBox, felder, mel);
+  let art = p.art_id ? { art_id: p.art_id, name: p.name, einheit: p.einheit, gebinde_menge: p.gebinde_menge, lagerort: p.lagerort } : null;
+  if (!ich || ich.rolle === "lesen") { meldung(mel.id, "Mit einem Nur-Lesen-Konto lässt sich nichts buchen.", "fehler"); return; }
+
+  function artikelGewaehlt(a) {
+    art = a; artBox.innerHTML = "";
+    const z = document.createElement("div"); z.className = "zeile"; z.innerHTML = "<span></span><span class='r'></span>";
+    z.firstChild.textContent = "Artikel"; z.lastChild.textContent = a.name; artBox.appendChild(z);
+    if (!p.art_id) {
+      const w = document.createElement("button"); w.type = "button"; w.className = "leise"; w.textContent = "ändern"; w.onclick = artikelWaehlen; artBox.appendChild(w);
+    }
+    felderZeigen();
+  }
+
+  function artikelWaehlen() {   // Position ohne Artikel: vorhandenen waehlen oder neu anlegen (ohne Gebinde – die legt die Buchung an)
+    art = null; artBox.innerHTML = ""; felder.innerHTML = "";
+    const such = feld(artBox, "Artikel zur Position – suchen", eingabe("search", p.bezeichnung ? p.bezeichnung.split(/\s+/)[0] : ""));
+    const liste = document.createElement("div"); artBox.appendChild(liste);
+    const suchen_ = async () => {
+      const q = such.value.trim(); liste.innerHTML = "";
+      if (q.length < 2) return;
+      try {
+        for (const a of await rpc("artikel_suchen", { q })) {
+          const b = document.createElement("button"); b.type = "button"; b.className = "geb"; b.innerHTML = "<span></span><span>wählen</span>";
+          b.firstChild.textContent = [a.name, a.artikelnummer].filter(Boolean).join(" · ");
+          b.onclick = () => artikelGewaehlt(a); liste.appendChild(b);
+        }
+      } catch (e) { meldung(mel.id, e.message, "fehler"); }
+    };
+    let zeit = null; such.oninput = () => { clearTimeout(zeit); zeit = setTimeout(suchen_, 300); };
+    suchen_();
+    const nk = document.createElement("button"); nk.type = "button"; nk.className = "haupt hell"; nk.textContent = "＋ Neuer Artikel für diese Position";
+    const form = document.createElement("div"); form.className = "versteckt"; artBox.append(nk, form);
+    nk.onclick = () => {
+      if (form.childNodes.length) { form.classList.toggle("versteckt"); return; }
+      form.classList.remove("versteckt");
+      const name = feld(form, "Name *", eingabe("text", p.bezeichnung || "")), typ = feld(form, "Typ", auswahl(TYPEN, "Chemikalie"));
+      const reihe = document.createElement("div"); reihe.className = "knopfreihe";
+      const l1 = document.createElement("div"), l2 = document.createElement("div"); l1.style.flex = "2"; l2.style.flex = "1"; reihe.append(l1, l2);
+      const groesse = feld(l1, "Gebindegröße *", eingabe("number")), einheit = feld(l2, "Einheit", auswahl(EINHEITEN, "mL"));
+      form.appendChild(reihe);
+      const ort = feld(form, "Lagerort", eingabe("text")), lief = feld(form, "Lieferant", eingabe("text", p.lieferant || ""));
+      const nr = feld(form, "Artikelnummer", eingabe("text", p.artikelnummer || "")), cas = feld(form, "CAS", eingabe("text"));
+      const ok = document.createElement("button"); ok.type = "button"; ok.className = "haupt"; ok.textContent = "Artikel anlegen"; form.appendChild(ok);
+      ok.onclick = async () => {
+        if (!name.value.trim()) { meldung(mel.id, "Bitte einen Namen eingeben.", "fehler"); return; }
+        if (!zahlAus(groesse)) { meldung(mel.id, "Bitte die Gebindegröße angeben (größer 0).", "fehler"); return; }
+        try {
+          artikelGewaehlt(await rpc("artikel_anlegen", { name: name.value, typ: typ.value, gebinde_menge: zahlAus(groesse), einheit: einheit.value,
+                                                         lagerort: ort.value, lieferant: lief.value, artikelnummer: nr.value, cas: cas.value,
+                                                         code: weCode, mit_gebinde: false }));
+          meldung(mel.id, "");
+        } catch (e) { meldung(mel.id, e.message, "fehler"); }
+      };
+      name.focus();
+    };
+  }
+
+  function felderZeigen() {
+    felder.innerHTML = "";
+    const anzahl = feld(felder, "Gelieferte Gebinde", eingabe("number", Math.max(1, Math.round(p.menge || 1)))); anzahl.step = "1";
+    const menge = feld(felder, `Menge je Gebinde (${art.einheit || "Einheit"})`, eingabe("number", art.gebinde_menge));
+    const ort = feld(felder, "Lagerort", eingabe("text", art.lagerort || ""));
+    // Charge und Verfall fragt der Wareneingang nicht ab (Nutzerwunsch 31.10.2026); liefert ein GS1-Code sie mit, werden sie still uebernommen
+    const ok = document.createElement("button"); ok.type = "button"; ok.className = "haupt"; ok.textContent = "✓ Lieferung buchen"; felder.appendChild(ok);
+    ok.onclick = async () => {
+      const n = parseInt(anzahl.value, 10);
+      if (!(n >= 1)) { meldung(mel.id, "Bitte die Zahl der gelieferten Gebinde angeben (1 bis 1000).", "fehler"); return; }
+      if (!zahlAus(menge)) { meldung(mel.id, "Bitte die Menge im Gebinde angeben (größer 0).", "fehler"); return; }
+      ok.disabled = true;
+      try {
+        const r = await rpc("lieferung_buchen", { pos_id: p.pos_id, anzahl: n, menge_je: zahlAus(menge), lagerort: ort.value, charge: (weGs && weGs.charge) || null,
+                                                  verfall: weGs ? verfallIso(weGs.verfall) : null, code: weCode, art_id: p.art_id ? null : art.art_id });
+        weCode = null; weGs = null;
+        await weLaden();
+        meldung("we-meldung", r.status === "geliefert" ? `Gebucht: ${r.anzahl} × ${r.name} – ${r.lagerort || "ohne Lagerort"}. QR-Etiketten in Parodia drucken.`
+                                                      : `Teillieferung gebucht: ${r.anzahl} × ${r.name} – noch ${zahl(r.rest)} bestellt.`, "ok");
+        window.scrollTo(0, 0);
+      } catch (e) { meldung(mel.id, e.message, "fehler"); ok.disabled = false; }
+    };
+  }
+
+  if (art) artikelGewaehlt(art); else artikelWaehlen();
+  k.scrollIntoView({ behavior: "smooth" });
+}
+
+$("we-scannen").onclick = () => scannen(async text => {
+  meldung("we-meldung", "");
+  if (gebindeAusText(text)) { meldung("we-meldung", "Das ist ein Gebinde-Etikett – dieses Gebinde ist schon im Bestand.", "fehler"); return; }
+  const fremd = fremderCode(text);
+  if (fremd) { meldung("we-meldung", fremd, "fehler"); return; }
+  const gs = gs1Lesen(text), roh = String(text).trim(), code = gs ? gs.gtin : roh;
+  try {
+    const r = await rpc("code_suchen", { code, charge: null });
+    if (!weListe.length) weListe = await rpc("lieferungen_offen");
+    const nrs = new Set([nrKurz(roh), nrKurz(code)]);
+    if (!r.unbekannt && r.artikelnummer) nrs.add(nrKurz(r.artikelnummer));
+    const passend = weListe.filter(p => (!r.unbekannt && p.art_id === r.art_id) || (p.artikelnummer && nrs.has(nrKurz(p.artikelnummer))));
+    weCode = r.unbekannt ? r.code : null;   // noch unbekannter Code: beim Buchen dem Artikel zuordnen
+    weGs = gs;
+    if (passend.length === 1) {
+      weZeigen(weListe); weFormular(passend[0]);
+      meldung("we-meldung", `Position gefunden: ${passend[0].bezeichnung || passend[0].name}.`, "ok");
+    } else if (passend.length > 1) {
+      weZeigen(passend); $("we-buchen").classList.add("versteckt");
+      meldung("we-meldung", "Mehrere Positionen passen – bitte antippen.", "ok");
+    } else {
+      weZeigen(weListe); $("we-buchen").classList.add("versteckt");
+      meldung("we-meldung", (r.unbekannt ? `Code ${r.code} ist noch keinem Artikel zugeordnet.` : `${r.name}:`)
+              + " Keine bestellte Position gefunden – bitte die Position in der Liste antippen.", "fehler");
+    }
+  } catch (e) { meldung("we-meldung", e.message, "fehler"); }
+}, "we-meldung", "Hersteller-Code des gelieferten Gebindes");
 
 // ---- Proben (Obregonia): Etikett #p=<probe_id>, Kennung (auch fruehere) oder Suche; Lagerort aendern
 let pZeit = null, lagerorte = null;
@@ -735,6 +1016,131 @@ $("hochladen").onclick = async () => {
     fotoDaten = null; $("foto").value = ""; $("titel").value = ""; $("vorschau").classList.add("versteckt");
   } catch (e) { meldung("dc-meldung", e.message, "fehler"); $("hochladen").disabled = false; }
 };
+
+// ---- Englisch (ab Maurice 0.015, Nutzerwunsch 31.10.2026): Umschalter unten neben „Abmelden“. Die Seite bleibt deutsch geschrieben;
+// alle angezeigten Texte (auch spaeter eingefuegte und Meldungen des Servers) werden ueber das Woerterbuch uebersetzt. Daten (Namen,
+// Lagerorte, Kennungen) bleiben, wie sie sind. Die Wahl merkt sich das Handy.
+const SPRACHE = lesen("matucana_sprache") === "en" ? "en" : "de";
+const EN_STATUS = { voll: "full", angebrochen: "opened", leer: "empty", entsorgt: "disposed" };
+const stEn = t => t.replace(/\((voll|angebrochen|leer|entsorgt)\)/g, (_, x) => `(${EN_STATUS[x]})`);
+const EN = {
+  "Matucana · ScienceHub": "Matucana · ScienceHub", "ScienceHub auf dem Smartphone": "ScienceHub on your smartphone", "Zurück zur Übersicht": "Back to overview",
+  "Anmelden": "Sign in", "Abmelden": "Sign out", "E-Mail-Adresse": "Email address", "Passwort": "Password",
+  "Mit der dienstlichen E-Mail-Adresse und dem gewohnten ScienceHub-Passwort.": "With your work email address and your usual ScienceHub password.",
+  "Adresse oder Passwort stimmt nicht.": "Email address or password is wrong.",
+  "konfig.json fehlt – die Adresse des Servers ist nicht eingetragen.": "konfig.json is missing – the server address is not set.",
+  "Verbrauch melden": "Report usage", "Inventur": "Stocktaking", "Proben": "Samples", "DC-Foto": "TLC photo", "Wer misst heute?": "Who is measuring today?",
+  "Geräte (openIRIS)": "Instruments (openIRIS)", "Admin": "Admin", "Bearbeiter/in": "Editor", "nur lesen": "read-only",
+  "📷 Scannen": "📷 Scan", "📋 Liste": "📋 List", "… oder suchen (Name, CAS, Artikelnummer, Lagerort)": "… or search (name, CAS, item number, location)",
+  "z. B. Methanol": "e.g. methanol", "Nichts gefunden.": "Nothing found.", "Kein offenes Gebinde.": "No open container.", "ohne Typ": "no type",
+  "ohne Lagerort": "no location", "(ohne Lagerort)": "(no location)", "Gebinde": "Container", "Entnommene Menge (": "Amount taken (", "Einheit": "unit",
+  "Bemerkung (optional)": "Remark (optional)", "Bitte eine Menge größer 0 eingeben.": "Please enter an amount greater than 0.",
+  "Gemeldet – das Gebinde ist jetzt leer.": "Reported – the container is now empty.",
+  "📷 Gebinde scannen": "📷 Scan container", "🗄 Lagerorte": "🗄 Locations",
+  "Bestand prüfen: Gebinde scannen oder einen Lagerort wählen, dann je Gebinde bestätigen oder die gezählte Menge eintragen.":
+    "Check stock: scan a container or choose a location, then confirm each container or enter the counted amount.",
+  "Lade Lagerorte …": "Loading locations …", "Lade …": "Loading …", "Keine offenen Gebinde.": "No open containers.",
+  "Keine offenen Gebinde an diesem Ort.": "No open containers at this location.", "✓ stimmt": "✓ correct", "Menge …": "Amount …", "leer": "empty",
+  "fehlt": "missing", "Bitte eine Menge (0 oder mehr) eingeben.": "Please enter an amount (0 or more).", "Dazu gibt es kein offenes Gebinde.": "There is no open container for it.",
+  "Gebinde-Etikett oder Hersteller-Code": "Container label or manufacturer code", "Code in den Rahmen halten": "Hold the code inside the frame", "Abbrechen": "Cancel",
+  "Der Scanner ließ sich nicht laden (keine Internetverbindung?). QR-Etiketten lassen sich auch mit der Kamera-App öffnen.":
+    "The scanner could not be loaded (no internet connection?). QR labels can also be opened with the camera app.",
+  "Das ist ein Proben-Etikett – bitte unter „Proben“ scannen.": "This is a sample label – please scan it under “Samples”.",
+  "Das ist eine Internet-Adresse, kein Gebinde-Etikett und kein Hersteller-Code.": "This is a web address, not a container label or manufacturer code.",
+  "Mit einem Nur-Lesen-Konto lässt sich nichts erfassen.": "A read-only account cannot record anything.",
+  "Gebinde ohne Etikett erfassen: zu vorhandenem Bestand hinzufügen oder als neuen Artikel anlegen. Danach findet jeder Scan dieses Codes den Artikel.":
+    "Record a container without a label: add it to existing stock or create a new item. After that, every scan of this code finds the item.",
+  "Zu vorhandenem Bestand – Artikel suchen": "Add to existing stock – search item", "Name, CAS oder Artikelnummer": "Name, CAS or item number",
+  "Nichts gefunden – dann „＋ Neuer Artikel“.": "Nothing found – then use “＋ New item”.", "das ist es": "this one",
+  "＋ neues Gebinde dieses Artikels": "＋ new container of this item", "Lagerort": "Location", "Gebinde anlegen": "Create container", "＋ Neuer Artikel": "＋ New item",
+  "Name *": "Name *", "Typ": "Type", "Gebindegröße *": "Container size *", "Lieferant": "Supplier", "Artikelnummer": "Item number", "CAS": "CAS",
+  "Artikel mit Gebinde anlegen": "Create item with container",
+  "GHS-Angaben, Mindestbestand und Sicherheitsdatenblatt danach in Parodia am PC ergänzen.": "Add GHS data, minimum stock and safety data sheet later in Parodia on the PC.",
+  "Chemikalie": "Chemical", "Lösemittel": "Solvent", "Verbrauchsmaterial": "Consumable", "Gerät": "Instrument", "Stück": "piece", "Packung": "pack",
+  "Bitte die Gebindegröße angeben (größer 0).": "Please enter the container size (greater than 0).", "Bitte einen Namen eingeben.": "Please enter a name.",
+  "Bitte die Menge im Gebinde angeben (größer 0).": "Please enter the amount in the container (greater than 0).",
+  "📷 Proben-Etikett scannen": "📷 Scan sample label", "… oder suchen (Kennung, Bezeichnung, Art, Lagerort)": "… or search (ID, description, species, location)",
+  "z. B. Opuntia oder OB-2026-0041": "e.g. Opuntia or OB-2026-0041", "Proben-Etikett (QR-Code oder Kennung)": "Sample label (QR code or ID)",
+  "Art": "Species", "Status": "Status", "Menge": "Amount", "Projekt": "Project", "verantwortlich": "responsible", "abgeleitet von": "derived from",
+  "Neuer Lagerort": "New location", "Lagerort speichern": "Save location", "Lagerort gespeichert.": "Location saved.", "Messungen": "Measurements", "Verlauf": "History",
+  "Heute": "Today", "7 Tage": "7 days", "Heute nicht gebucht.": "Not booked today.", "In den nächsten 7 Tagen nicht gebucht.": "Not booked in the next 7 days.",
+  "In ScienceHub sind keine Geräte mit openIRIS-Kalender eingetragen.": "No instruments with an openIRIS calendar are set up in ScienceHub.", "ohne Namen": "no name",
+  "DC-Platte fotografieren": "Photograph TLC plate", "Das Foto erscheint in Echinopsis unter Rhipsalis → DC als Entwurf zum Prüfen.":
+    "The photo appears in Echinopsis under Rhipsalis → TLC as a draft to check.", "Titel (optional)": "Title (optional)",
+  "z. B. Extrakte Opuntia, Laufmittel A": "e.g. Opuntia extracts, eluent A", "Foto": "Photo", "Hochladen": "Upload", "Wird hochgeladen …": "Uploading …",
+  "Das Foto lässt sich nicht lesen.": "The photo cannot be read.", "Matucana · Schnittstelle": "Matucana · interface",
+  "Wareneingang": "Goods receipt", "📷 Lieferung scannen": "📷 Scan delivery", "🔄 Liste": "🔄 List",
+  "Lieferung bestätigen: den Hersteller-Code eines gelieferten Gebindes scannen oder die Position antippen. Danach Anzahl und Lagerort prüfen und buchen.":
+    "Confirm a delivery: scan the manufacturer code of a delivered container or tap the line. Then check number and location and book it.",
+  "Bestellt": "Ordered", "Offen (noch nicht als bestellt markiert)": "Open (not yet marked as ordered)",
+  "Keine bestellten oder offenen Positionen.": "No ordered or open lines.", "Artikel": "Item", "ändern": "change", "wählen": "choose",
+  "Artikel zur Position – suchen": "Item for this line – search", "＋ Neuer Artikel für diese Position": "＋ New item for this line", "Artikel anlegen": "Create item",
+  "Gelieferte Gebinde": "Delivered containers", "✓ Lieferung buchen": "✓ Book delivery",
+  "Mit einem Nur-Lesen-Konto lässt sich nichts buchen.": "A read-only account cannot book anything.",
+  "Das ist ein Gebinde-Etikett – dieses Gebinde ist schon im Bestand.": "This is a container label – this container is already in stock.",
+  "Mehrere Positionen passen – bitte antippen.": "Several lines match – please tap one.", "Hersteller-Code des gelieferten Gebindes": "Manufacturer code of the delivered container",
+  "Bitte die Zahl der gelieferten Gebinde angeben (1 bis 1000).": "Please enter the number of delivered containers (1 to 1000).",
+  "Die Position gibt es nicht (mehr).": "This line does not exist (any more).", "Diese Position ist schon als geliefert gebucht.": "This line has already been booked as delivered.",
+  "Bitte zuerst den Artikel wählen oder neu anlegen.": "Please choose or create the item first.",
+  // Meldungen des Servers
+  "nicht angemeldet": "not signed in", "kein ScienceHub-Konto zu dieser Anmeldung": "no ScienceHub account for this sign-in",
+  "Mit einem Nur-Lesen-Konto kann nichts geändert werden.": "A read-only account cannot change anything.",
+  "Dieses Gebinde gibt es nicht (mehr).": "This container does not exist (any more).", "Das Gebinde gibt es nicht (mehr).": "This container does not exist (any more).",
+  "Kein Code gelesen.": "No code read.", "Den Artikel gibt es nicht (mehr).": "This item does not exist (any more).", "Kein Foto übertragen.": "No photo transferred.",
+  "Das Foto ist größer als 15 MB.": "The photo is larger than 15 MB.", "Nur JPEG- oder PNG-Fotos.": "JPEG or PNG photos only.", "Keine Probe angegeben.": "No sample given.",
+  "Die Probe gibt es nicht (mehr).": "This sample does not exist (any more).", "Verfall bitte als JJJJ-MM-TT.": "Expiry date please as YYYY-MM-DD.",
+  "Unbekannter Typ.": "Unknown type.", "Unbekannte Einheit.": "Unknown unit.",
+};
+const EN_MUSTER = [
+  [/^bestellt: (.+)$/, "ordered: $1"], [/^am (\d{4}-\d{2}-\d{2})$/, "on $1"], [/^Menge je Gebinde \((.*)\)$/, "Amount per container ($1)"],
+  [/^Position gefunden: (.*)\.$/, "Line found: $1."], [/^Gebucht: (.*) – (.*)\. QR-Etiketten in Parodia drucken\.$/, "Booked: $1 – $2. Print QR labels in Parodia."],
+  [/^Teillieferung gebucht: (.*) – noch (.*) bestellt\.$/, "Partial delivery booked: $1 – $2 still on order."],
+  [/^Code (\S+) ist noch keinem Artikel zugeordnet\. Keine bestellte Position gefunden – bitte die Position in der Liste antippen\.$/,
+   "Code $1 is not assigned to any item yet. No ordered line found – please tap the line in the list."],
+  [/^(.*): Keine bestellte Position gefunden – bitte die Position in der Liste antippen\.$/, "$1: no ordered line found – please tap the line in the list."],
+  [/^(\d+) Gebinde$/, "$1 containers"], [/^Ch\. (.+)$/, "Lot $1"], [/^Charge (.+)$/, "Lot $1"], [/^verw\. bis (\S+?)(\.?)$/, "use by $1$2"],
+  [/^noch (.+)$/, "$1 left"], [/^gezählt (.+)$/, "counted $1"], [/^Stand (.+)$/, "as of $1"], [/^(.*) \(läuft gerade\)$/, "$1 (in progress)"],
+  [/^erfasst: (.+)$/, "recorded: $1"], [/^jetzt: (.+)$/, "now: $1"], [/^Gezählte Menge \((.*)\)$/, "Counted amount ($1)"],
+  [/^Menge im Gebinde \((.*)\)$/, "Amount in container ($1)"], [/^Gemeldet – noch (.*)\.$/, "Reported – $1 left."],
+  [/^(.*): bitte das Gebinde antippen\.$/, "$1: please tap the container."], [/^(.*): schon als „(.+)“ gemeldet\.$/, (m, a, b) => `${a}: already reported as “${EN_STATUS[b] || b}”.`],
+  [/^Code (\S+) ist noch nicht zugeordnet(\.?)$/, "Code $1 is not assigned yet$2"], [/^Erfasst: (.*) – der Code ist jetzt zugeordnet\.$/, "Recorded: $1 – the code is now assigned."],
+  [/^Neu erfasst und gezählt: (.*)\.$/, "Newly recorded and counted: $1."], [/^Zugeordnet: (.*) – jetzt bestätigen oder zählen\.$/, "Assigned: $1 – now confirm or count."],
+  [/^Die Kamera ließ sich nicht öffnen \((.*)\)\. Bitte den Zugriff auf die Kamera erlauben\.$/, "The camera could not be opened ($1). Please allow camera access."],
+  [/^Hochgeladen \((\d+) kB\)\. In Echinopsis unter Rhipsalis → DC als Entwurf\.$/, "Uploaded ($1 kB). In Echinopsis under Rhipsalis → TLC as a draft."],
+  [/^Anmeldung fehlgeschlagen \((\d+)\)$/, "Sign-in failed ($1)"], [/^Fehler (\d+)$/, "Error $1"],
+  [/^Das Gebinde ist schon als „(.+)“ gemeldet\.$/, (m, a) => `The container has already been reported as “${EN_STATUS[a] || a}”.`],
+  [/^Keine Probe „(.+)“ gefunden\.$/, "No sample “$1” found."], [/^Unbekanntes Ergebnis: (.*)$/, "Unknown result: $1"],
+  [/^Die Artikelnummer (.+) ist schon als „(.+)“ eingetragen – bitte diesen Artikel im Bestand wählen\.$/, "Item number $1 is already registered as “$2” – please choose this item in the stock."],
+];
+function en(t) {
+  if (SPRACHE !== "en" || !t || !/[A-Za-zÄÖÜäöüß]/.test(t)) return t;
+  const s = t.trim();
+  let r = EN[s];
+  if (r === undefined) for (const [re, f] of EN_MUSTER) { if (re.test(s)) { r = s.replace(re, f); break; } }
+  if (r === undefined && s.includes(" · ")) {   // zusammengesetzt: „Teil · Teil“ stueckweise
+    const teile = s.split(" · "), neu = teile.map(x => en(x));
+    if (neu.some((x, i) => x !== teile[i])) r = neu.join(" · ");
+  }
+  if (r === undefined && /\((voll|angebrochen|leer|entsorgt)\)/.test(s)) r = s;
+  return r === undefined ? t : t.replace(s, stEn(r));
+}
+function uebersetzen(wurzel) {
+  if (SPRACHE !== "en" || !wurzel) return;
+  if (wurzel.nodeType === 3) { const x = en(wurzel.nodeValue); if (x !== wurzel.nodeValue) wurzel.nodeValue = x; return; }
+  if (wurzel.nodeType !== 1 || /^(SCRIPT|STYLE|TEXTAREA)$/.test(wurzel.nodeName)) return;
+  const w = document.createTreeWalker(wurzel, NodeFilter.SHOW_TEXT);
+  for (let n = w.nextNode(); n; n = w.nextNode()) uebersetzen(n);
+  for (const el of [wurzel, ...wurzel.querySelectorAll("[placeholder],[aria-label]")])
+    for (const a of ["placeholder", "aria-label"]) if (el.hasAttribute && el.hasAttribute(a)) { const x = en(el.getAttribute(a)); if (x !== el.getAttribute(a)) el.setAttribute(a, x); }
+}
+if (SPRACHE === "en") {
+  document.documentElement.lang = "en";
+  uebersetzen(document.body);
+  new MutationObserver(ms => { for (const m of ms) { if (m.type === "characterData") uebersetzen(m.target); else m.addedNodes.forEach(uebersetzen); } })
+    .observe(document.body, { childList: true, subtree: true, characterData: true });
+}
+$("sprache").textContent = SPRACHE === "en" ? "🇩🇪 Deutsch" : "🇬🇧 English";
+$("sprache").onclick = () => { merken("matucana_sprache", SPRACHE === "en" ? "de" : "en"); location.reload(); };
 
 start();
 </script>
