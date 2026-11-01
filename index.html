@@ -149,6 +149,8 @@
     </div>
     <div id="we-meldung"></div>
     <div class="klein" style="margin-top:10px">Lieferung bestätigen: den Hersteller-Code eines gelieferten Gebindes scannen oder die Position antippen. Danach Anzahl und Lagerort prüfen und buchen.</div>
+    <label class="klein" for="we-suche" style="display:block;margin-top:10px">Ältere Bestellung suchen (Name, Artikel- oder Bestellnummer)</label>
+    <input id="we-suche" type="search" autocomplete="off">
   </div>
   <div class="karte versteckt" id="we-buchen"></div>
   <div id="we-liste"></div>
@@ -196,7 +198,7 @@
 <footer>
   <div class="knopfreihe" style="justify-content:center"><span id="abmelden-zeile" class="versteckt"><button class="leise" id="abmelden">Abmelden</button></span>
     <button class="leise" id="sprache" type="button">🇬🇧 English</button></div>
-  <div style="margin-top:10px">Matucana · Schnittstelle <span id="version">Maurice 0.016</span> · ScienceHub, CAU Kiel</div>
+  <div style="margin-top:10px">Matucana · Schnittstelle <span id="version">Maurice 0.017</span> · ScienceHub, CAU Kiel</div>
 </footer>
 
 <!-- Scanner fuer QR, DataMatrix (GS1) und Strichcodes, auch auf dem iPhone (ZXing, MIT-Lizenz) -->
@@ -204,7 +206,7 @@
         integrity="sha256-18yPad1wvc86wAya5XK/KsufQTK6N5xy34QuTbkYZS0=" crossorigin="anonymous"></script>
 <script>
 "use strict";
-const VERSION = "Maurice 0.016";   // 0.016: Kachel Wareneingang (Lieferung per Scan bestaetigen, Teillieferung, Artikel waehlen/anlegen); 0.015: Gebinde ohne Etikett per Hersteller-Code erfassen (zuordnen oder neu anlegen), fremde Codes abgewiesen, Englisch umschaltbar; 0.014: Einheit nur als Text (A8), ZXing mit Pruefsumme (SRI)
+const VERSION = "Maurice 0.017";   // 0.017: Wareneingang auch fuer vergangene Bestellungen (noch nicht im Bestand, Suche, Scan); 0.016: Kachel Wareneingang (Lieferung per Scan bestaetigen, Teillieferung, Artikel waehlen/anlegen); 0.015: Gebinde ohne Etikett per Hersteller-Code erfassen (zuordnen oder neu anlegen), fremde Codes abgewiesen, Englisch umschaltbar; 0.014: Einheit nur als Text (A8), ZXing mit Pruefsumme (SRI)
 const FOTO_PX = 2400;   // laengste Kante nach dem Verkleinern
 let K = null;           // {url, apikey} aus konfig.json
 let sitzung = null;     // {access_token, refresh_token, laeuft_ab}
@@ -735,26 +737,46 @@ oeffnen.wareneingang = () => weLaden();
 $("we-liste-knopf").onclick = () => { weCode = null; weGs = null; meldung("we-meldung", ""); weLaden(); };
 const nrKurz = x => String(x || "").replace(/[^0-9A-Za-z]/g, "").toUpperCase();
 
+// ab Maurice 0.017 (SP 1): dazu vergangene Bestellungen (VWR-Auftraege, Excel-Liste), die noch nicht im Bestand sind – Status „vergangen“
+const vbPosition = v => ({ vb_id: v.vb_id, art_id: v.art_id, lieferant: v.lieferant, artikelnummer: v.artikelnummer, bezeichnung: v.bezeichnung,
+  verpackungseinheit: v.verpackungseinheit, menge: v.offen, status: "vergangen", bestellt_am: v.bestelldatum, bestellnummer: v.bestellnummer,
+  name: v.name, einheit: v.einheit, gebinde_menge: v.gebinde_menge, lagerort: v.lagerort });
+
 async function weLaden() {
   $("we-buchen").classList.add("versteckt");
   const z = $("we-liste"); z.innerHTML = '<div class="klein">Lade …</div>';
-  try { weListe = await rpc("lieferungen_offen"); } catch (e) { z.innerHTML = ""; meldung("we-meldung", e.message, "fehler"); return; }
+  try {
+    const [l, v] = await Promise.all([rpc("lieferungen_offen"), rpc("bestellungen_offen", {})]);
+    weListe = l.concat(v.map(vbPosition));
+  } catch (e) { z.innerHTML = ""; meldung("we-meldung", e.message, "fehler"); return; }
   weZeigen(weListe);
 }
 
-function weZeigen(liste) {
+let weSuchZeit = null;
+$("we-suche").oninput = () => {
+  clearTimeout(weSuchZeit);
+  weSuchZeit = setTimeout(async () => {
+    const q = $("we-suche").value.trim();
+    if (q.length < 2) { weZeigen(weListe); return; }
+    try { weZeigen((await rpc("bestellungen_offen", { q })).map(vbPosition), "Keine passende Bestellung, die noch nicht im Bestand ist."); }
+    catch (e) { meldung("we-meldung", e.message, "fehler"); }
+  }, 350);
+};
+
+function weZeigen(liste, leer) {
   const z = $("we-liste"); z.innerHTML = "";
-  if (!liste.length) { z.innerHTML = '<div class="karte klein">Keine bestellten oder offenen Positionen.</div>'; return; }
+  if (!liste.length) { z.innerHTML = `<div class="karte klein">${leer || "Keine bestellten oder offenen Positionen."}</div>`; return; }
   let gruppe = null;
   for (const p of liste) {
     if (p.status !== gruppe) {
       gruppe = p.status; const h = document.createElement("div"); h.className = "gruppe";
-      h.textContent = gruppe === "bestellt" ? "Bestellt" : "Offen (noch nicht als bestellt markiert)"; z.appendChild(h);
+      h.textContent = gruppe === "bestellt" ? "Bestellt" : gruppe === "vergangen" ? "Vergangene Bestellungen, noch nicht im Bestand"
+                    : "Offen (noch nicht als bestellt markiert)"; z.appendChild(h);
     }
     const b = document.createElement("button"); b.type = "button"; b.className = "ort";
     b.innerHTML = "<span><span></span><br><span class='klein'></span></span><span class='klein'></span>";
     b.firstChild.firstChild.textContent = p.bezeichnung || p.name || "?";
-    b.firstChild.lastChild.textContent = [p.lieferant, p.artikelnummer, p.bestellt_am ? "am " + p.bestellt_am : ""].filter(Boolean).join(" · ");
+    b.firstChild.lastChild.textContent = [p.lieferant, p.artikelnummer, p.bestellnummer, p.bestellt_am ? "am " + p.bestellt_am : ""].filter(Boolean).join(" · ");
     b.lastChild.textContent = `${zahl(p.menge)} ×`;
     b.style.textAlign = "left";
     b.onclick = () => weFormular(p);
@@ -766,7 +788,8 @@ function weFormular(p) {
   const k = $("we-buchen"); k.classList.remove("versteckt"); k.innerHTML = "";
   const t = document.createElement("b"); t.textContent = p.bezeichnung || p.name || "?"; k.appendChild(t);
   const u = document.createElement("div"); u.className = "klein";
-  u.textContent = [p.lieferant, p.artikelnummer, `bestellt: ${zahl(p.menge)} ${p.verpackungseinheit || ""}`.trim()].filter(Boolean).join(" · ");
+  u.textContent = [p.lieferant, p.artikelnummer, p.bestellnummer, p.vb_id ? `noch nicht im Bestand: ${zahl(p.menge)}`
+                   : `bestellt: ${zahl(p.menge)} ${p.verpackungseinheit || ""}`.trim()].filter(Boolean).join(" · ");
   k.appendChild(u);
   const artBox = document.createElement("div"), felder = document.createElement("div"), mel = document.createElement("div");
   mel.id = "we-buchen-meldung"; k.append(artBox, felder, mel);
@@ -840,6 +863,16 @@ function weFormular(p) {
       if (!zahlAus(menge)) { meldung(mel.id, "Bitte die Menge im Gebinde angeben (größer 0).", "fehler"); return; }
       ok.disabled = true;
       try {
+        if (p.vb_id) {   // vergangene Bestellung (ab 0.017): Charge kommt aus der Bestellung, Verfall fragt der Wareneingang nicht ab
+          const r = await rpc("bestellung_buchen", { vb_id: p.vb_id, anzahl: n, menge_je: zahlAus(menge), lagerort: ort.value, code: weCode,
+                                                     art_id: p.art_id ? null : art.art_id });
+          weCode = null; weGs = null; $("we-suche").value = "";
+          await weLaden();
+          meldung("we-meldung", r.offen ? `Gebucht: ${r.anzahl} × ${r.name} – noch ${r.offen} aus dieser Bestellung offen.`
+                                        : `Gebucht: ${r.anzahl} × ${r.name} – ${r.lagerort || "ohne Lagerort"}. QR-Etiketten in Parodia drucken.`, "ok");
+          window.scrollTo(0, 0);
+          return;
+        }
         const r = await rpc("lieferung_buchen", { pos_id: p.pos_id, anzahl: n, menge_je: zahlAus(menge), lagerort: ort.value, charge: (weGs && weGs.charge) || null,
                                                   verfall: weGs ? verfallIso(weGs.verfall) : null, code: weCode, art_id: p.art_id ? null : art.art_id });
         weCode = null; weGs = null;
@@ -863,10 +896,13 @@ $("we-scannen").onclick = () => scannen(async text => {
   const gs = gs1Lesen(text), roh = String(text).trim(), code = gs ? gs.gtin : roh;
   try {
     const r = await rpc("code_suchen", { code, charge: null });
-    if (!weListe.length) weListe = await rpc("lieferungen_offen");
+    if (!weListe.length) await weLaden();
     const nrs = new Set([nrKurz(roh), nrKurz(code)]);
     if (!r.unbekannt && r.artikelnummer) nrs.add(nrKurz(r.artikelnummer));
-    const passend = weListe.filter(p => (!r.unbekannt && p.art_id === r.art_id) || (p.artikelnummer && nrs.has(nrKurz(p.artikelnummer))));
+    let passend = weListe.filter(p => (!r.unbekannt && p.art_id === r.art_id) || (p.artikelnummer && nrs.has(nrKurz(p.artikelnummer))));
+    if (!passend.length && !r.unbekannt) {   // ab 0.017: auch aeltere vergangene Bestellungen dieses Artikels
+      passend = (await rpc("bestellungen_offen", { art_id: r.art_id })).map(vbPosition);
+    }
     weCode = r.unbekannt ? r.code : null;   // noch unbekannter Code: beim Buchen dem Artikel zuordnen
     weGs = gs;
     if (passend.length === 1) {
@@ -1082,6 +1118,10 @@ const EN = {
   "Bitte die Zahl der gelieferten Gebinde angeben (1 bis 1000).": "Please enter the number of delivered containers (1 to 1000).",
   "Die Position gibt es nicht (mehr).": "This line does not exist (any more).", "Diese Position ist schon als geliefert gebucht.": "This line has already been booked as delivered.",
   "Bitte zuerst den Artikel wählen oder neu anlegen.": "Please choose or create the item first.",
+  "Ältere Bestellung suchen (Name, Artikel- oder Bestellnummer)": "Search older orders (name, item or order number)",
+  "Vergangene Bestellungen, noch nicht im Bestand": "Past orders not yet in stock",
+  "Keine passende Bestellung, die noch nicht im Bestand ist.": "No matching order that is not yet in stock.",
+  "Diese Bestellung ist schon ganz im Bestand.": "This order is already fully in stock.", "Die Bestellung gibt es nicht (mehr).": "This order does not exist (any more).",
   // Meldungen des Servers
   "nicht angemeldet": "not signed in", "kein ScienceHub-Konto zu dieser Anmeldung": "no ScienceHub account for this sign-in",
   "Mit einem Nur-Lesen-Konto kann nichts geändert werden.": "A read-only account cannot change anything.",
@@ -1095,6 +1135,8 @@ const EN_MUSTER = [
   [/^bestellt: (.+)$/, "ordered: $1"], [/^am (\d{4}-\d{2}-\d{2})$/, "on $1"], [/^Menge je Gebinde \((.*)\)$/, "Amount per container ($1)"],
   [/^Position gefunden: (.*)\.$/, "Line found: $1."], [/^Gebucht: (.*) – (.*)\. QR-Etiketten in Parodia drucken\.$/, "Booked: $1 – $2. Print QR labels in Parodia."],
   [/^Teillieferung gebucht: (.*) – noch (.*) bestellt\.$/, "Partial delivery booked: $1 – $2 still on order."],
+  [/^noch nicht im Bestand: (.+)$/, "not yet in stock: $1"], [/^Gebucht: (.*) – noch (\d+) aus dieser Bestellung offen\.$/, "Booked: $1 – $2 from this order still open."],
+  [/^Von dieser Bestellung sind noch (\d+) Gebinde offen\.$/, "$1 containers of this order are still open."],
   [/^Code (\S+) ist noch keinem Artikel zugeordnet\. Keine bestellte Position gefunden – bitte die Position in der Liste antippen\.$/,
    "Code $1 is not assigned to any item yet. No ordered line found – please tap the line in the list."],
   [/^(.*): Keine bestellte Position gefunden – bitte die Position in der Liste antippen\.$/, "$1: no ordered line found – please tap the line in the list."],
