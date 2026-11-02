@@ -192,21 +192,26 @@
 <div id="scanner" class="versteckt">
   <video id="video" playsinline muted></video>
   <div class="klein" id="scan-text">Code in den Rahmen halten</div>
-  <button class="leise" id="scan-stopp" type="button">Abbrechen</button>
+  <div class="klein" style="color:#aaa;margin-top:0">Nicht zu nah: erst wenn der Code scharf ist, wird er erkannt – klein ist kein Problem.</div>
+  <div class="knopfreihe" style="justify-content:center">
+    <button class="leise" id="scan-foto-knopf" type="button">📸 Foto statt Video</button>
+    <button class="leise" id="scan-stopp" type="button">Abbrechen</button>
+  </div>
+  <input id="scan-foto" type="file" accept="image/*" capture="environment" class="versteckt">
 </div>
 
 <footer>
   <div class="knopfreihe" style="justify-content:center"><span id="abmelden-zeile" class="versteckt"><button class="leise" id="abmelden">Abmelden</button></span>
     <button class="leise" id="sprache" type="button">🇬🇧 English</button></div>
-  <div style="margin-top:10px">Matucana · Schnittstelle <span id="version">Maurice 0.017</span> · ScienceHub, CAU Kiel</div>
+  <div style="margin-top:10px">Matucana · Schnittstelle <span id="version">Maurice 0.018</span> · ScienceHub, CAU Kiel</div>
 </footer>
 
-<!-- Scanner fuer QR, DataMatrix (GS1) und Strichcodes, auch auf dem iPhone (ZXing, MIT-Lizenz) -->
-<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"
-        integrity="sha256-18yPad1wvc86wAya5XK/KsufQTK6N5xy34QuTbkYZS0=" crossorigin="anonymous"></script>
+<!-- Scanner fuer QR, DataMatrix (GS1) und Strichcodes, auch auf dem iPhone (zxing-cpp als zxing-wasm, MIT-Lizenz) -->
+<script src="https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.5/dist/iife/reader/index.js"
+        integrity="sha256-Io5tjMuEHFRDhu6v1fGClNPkqg56ogQZvFGgAJudPBc=" crossorigin="anonymous"></script>
 <script>
 "use strict";
-const VERSION = "Maurice 0.017";   // 0.017: Wareneingang auch fuer vergangene Bestellungen (noch nicht im Bestand, Suche, Scan); 0.016: Kachel Wareneingang (Lieferung per Scan bestaetigen, Teillieferung, Artikel waehlen/anlegen); 0.015: Gebinde ohne Etikett per Hersteller-Code erfassen (zuordnen oder neu anlegen), fremde Codes abgewiesen, Englisch umschaltbar; 0.014: Einheit nur als Text (A8), ZXing mit Pruefsumme (SRI)
+const VERSION = "Maurice 0.018";   // 0.018: Scanner zxing-cpp (WASM) statt ZXing-JS, hohe Aufloesung mit Fokus/Zoom, „Foto statt Video“ fuer kleine Codes; 0.017: Wareneingang auch fuer vergangene Bestellungen (noch nicht im Bestand, Suche, Scan); 0.016: Kachel Wareneingang (Lieferung per Scan bestaetigen, Teillieferung, Artikel waehlen/anlegen); 0.015: Gebinde ohne Etikett per Hersteller-Code erfassen (zuordnen oder neu anlegen), fremde Codes abgewiesen, Englisch umschaltbar; 0.014: Einheit nur als Text (A8), ZXing mit Pruefsumme (SRI)
 const FOTO_PX = 2400;   // laengste Kante nach dem Verkleinern
 let K = null;           // {url, apikey} aus konfig.json
 let sitzung = null;     // {access_token, refresh_token, laeuft_ab}
@@ -337,37 +342,91 @@ $("anmeldeform").addEventListener("submit", async ev => {
 $("abmelden").onclick = abmelden;
 
 // ---- Scanner (eine Ebene fuer alle Kacheln): QR, DataMatrix, Strichcodes -> Rueckruf mit dem Text
-let leser = null;
-function scanStoppen() {
-  try { if (leser) leser.reset(); } catch (e) {}
-  leser = null; $("scanner").classList.add("versteckt");
+// ab Maurice 0.018 zxing-cpp (zxing-wasm, MIT) statt ZXing-JS: ZXing-JS fand DataMatrix-Codes nur allein in der Bildmitte – kleine Codes
+// neben Text auf Flaschenetiketten nie. Das WASM wird wie das Skript (SRI) gegen eine feste Pruefsumme geprueft.
+const SCAN_WASM = "https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.5/dist/reader/zxing_reader.wasm";
+const SCAN_WASM_SHA256 = "rswYdt4DbGLIQZ9npeGhaxaYoyW80ZCqhIENUW4mOTE=";
+const SCAN_OPTIONEN = { formats: ["QRCode", "DataMatrix", "EAN-13", "EAN-8", "Code128", "UPC-A"], tryHarder: true, maxNumberOfSymbols: 1 };
+let scanBereit = null, scanAuftrag = null, scanStrom = null, scanTakt = null;   // scanAuftrag: { rueckruf, fehlerZiel }
+function scanLaden() {
+  if (!scanBereit) scanBereit = (async () => {
+    const bin = await (await fetch(SCAN_WASM)).arrayBuffer();
+    const h = btoa(String.fromCharCode(...new Uint8Array(await crypto.subtle.digest("SHA-256", bin))));
+    if (h !== SCAN_WASM_SHA256) throw new Error("Prüfsumme des Scanners stimmt nicht");
+    await window.ZXingWASM.prepareZXingModule({ overrides: { wasmBinary: bin }, fireImmediately: true });
+    return window.ZXingWASM;
+  })().catch(e => { scanBereit = null; throw e; });
+  return scanBereit;
 }
-$("scan-stopp").onclick = scanStoppen;
+function scanStoppen() {
+  clearTimeout(scanTakt); scanTakt = null;
+  if (scanStrom) scanStrom.getTracks().forEach(t => t.stop());
+  scanStrom = null; $("video").srcObject = null; $("scanner").classList.add("versteckt");
+}
+$("scan-stopp").onclick = () => { scanAuftrag = null; scanStoppen(); };
+function scanTreffer(text) {
+  const a = scanAuftrag; scanAuftrag = null;
+  scanStoppen();
+  if (navigator.vibrate) navigator.vibrate(60);
+  if (a) a.rueckruf(text);
+}
+async function kameraSchaerfen() {   // ab Maurice 0.018: Dauerfokus und etwa 2fach-Zoom, damit man mit Abstand (scharf) scannt
+  try {
+    const spur = scanStrom ? scanStrom.getVideoTracks()[0] : null;
+    if (!spur || !spur.getCapabilities) return;
+    const k = spur.getCapabilities(), wunsch = {};
+    if (k.focusMode && k.focusMode.includes("continuous")) wunsch.focusMode = "continuous";
+    if (k.zoom && k.zoom.max >= 1.5) wunsch.zoom = Math.max(k.zoom.min || 1, Math.min(2, k.zoom.max));
+    if (Object.keys(wunsch).length) await spur.applyConstraints({ advanced: [wunsch] });
+  } catch (e) {}   // nicht jedes Geraet kann das – dann ohne
+}
 async function scannen(rueckruf, fehlerZiel, hinweis) {
   meldung(fehlerZiel, "");
-  if (!window.ZXing || !navigator.mediaDevices) {
-    meldung(fehlerZiel, "Der Scanner ließ sich nicht laden (keine Internetverbindung?). QR-Etiketten lassen sich auch mit der Kamera-App öffnen.", "fehler"); return;
-  }
+  const nichtGeladen = "Der Scanner ließ sich nicht laden (keine Internetverbindung?). QR-Etiketten lassen sich auch mit der Kamera-App öffnen.";
+  if (!window.ZXingWASM || !navigator.mediaDevices) { meldung(fehlerZiel, nichtGeladen, "fehler"); return; }
+  scanAuftrag = { rueckruf, fehlerZiel };
+  $("scan-text").textContent = hinweis || "Code in den Rahmen halten";
+  $("scanner").classList.remove("versteckt");
+  let Z;
+  try { Z = await scanLaden(); } catch (e) { scanAuftrag = null; scanStoppen(); meldung(fehlerZiel, nichtGeladen, "fehler"); return; }
+  if (!scanAuftrag) return;   // inzwischen abgebrochen
   try {
-    const Z = window.ZXing, hinweise = new Map();
-    hinweise.set(Z.DecodeHintType.POSSIBLE_FORMATS, [Z.BarcodeFormat.QR_CODE, Z.BarcodeFormat.DATA_MATRIX, Z.BarcodeFormat.EAN_13,
-                 Z.BarcodeFormat.EAN_8, Z.BarcodeFormat.CODE_128, Z.BarcodeFormat.UPC_A]);
-    hinweise.set(Z.DecodeHintType.TRY_HARDER, true);
-    leser = new Z.BrowserMultiFormatReader(hinweise, 300);
-    $("scan-text").textContent = hinweis || "Code in den Rahmen halten";
-    $("scanner").classList.remove("versteckt");
-    await leser.decodeFromConstraints({ video: { facingMode: "environment" } }, $("video"), (ergebnis) => {
-      if (!ergebnis || !leser) return;
-      const text = ergebnis.getText();
-      scanStoppen();
-      if (navigator.vibrate) navigator.vibrate(60);
-      rueckruf(text);
-    });
+    // hohe Aufloesung: sonst liefert Safari oft nur 640x480, und kleine DataMatrix-Codes bestehen aus zu wenigen Pixeln
+    scanStrom = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+    if (!scanAuftrag) { scanStoppen(); return; }
+    const v = $("video"); v.srcObject = scanStrom; await v.play();
+    kameraSchaerfen();
+    const c = document.createElement("canvas"), g = c.getContext("2d", { willReadFrequently: true });
+    const runde = async () => {
+      if (!scanStrom || !scanAuftrag) return;
+      if (v.videoWidth) {
+        c.width = v.videoWidth; c.height = v.videoHeight; g.drawImage(v, 0, 0);
+        try {
+          const r = await Z.readBarcodes(g.getImageData(0, 0, c.width, c.height), SCAN_OPTIONEN);
+          if (r.length && scanStrom) { scanTreffer(r[0].text); return; }
+        } catch (e) {}
+      }
+      scanTakt = setTimeout(runde, 150);
+    };
+    runde();
   } catch (e) {
-    scanStoppen();
+    scanAuftrag = null; scanStoppen();
     meldung(fehlerZiel, "Die Kamera ließ sich nicht öffnen (" + e.message + "). Bitte den Zugriff auf die Kamera erlauben.", "fehler");
   }
 }
+// Foto statt Video (ab Maurice 0.018, Nutzerwunsch 02.11.2026): die normale Kamera (Makro, volle Aufloesung) nimmt auf, der Code wird
+// aus dem Foto gelesen – zuverlaessiger bei kleinen Codes auf gewoelbten Flaschen
+$("scan-foto-knopf").onclick = () => { $("scan-foto").value = ""; $("scan-foto").click(); };
+$("scan-foto").onchange = async () => {
+  const datei = $("scan-foto").files[0], a = scanAuftrag;
+  if (!datei || !a) return;
+  $("scan-text").textContent = "Foto wird gelesen …";
+  let r = [];
+  try { r = await (await scanLaden()).readBarcodes(datei, SCAN_OPTIONEN); } catch (e) {}
+  if (r.length) { scanTreffer(r[0].text); return; }
+  scanAuftrag = null; scanStoppen();
+  meldung(a.fehlerZiel, "Im Foto wurde kein Code gefunden – bitte den Code scharf, gerade und ohne Spiegelung aufnehmen.", "fehler");
+};
 
 // ---- Verbrauch melden
 let gewaehlt = null, suchZeit = null;
@@ -1130,6 +1189,10 @@ const EN = {
   "Das Foto ist größer als 15 MB.": "The photo is larger than 15 MB.", "Nur JPEG- oder PNG-Fotos.": "JPEG or PNG photos only.", "Keine Probe angegeben.": "No sample given.",
   "Die Probe gibt es nicht (mehr).": "This sample does not exist (any more).", "Verfall bitte als JJJJ-MM-TT.": "Expiry date please as YYYY-MM-DD.",
   "Unbekannter Typ.": "Unknown type.", "Unbekannte Einheit.": "Unknown unit.",
+  "Nicht zu nah: erst wenn der Code scharf ist, wird er erkannt – klein ist kein Problem.": "Not too close: the code is only recognised once it is sharp – small is fine.",
+  "📸 Foto statt Video": "📸 Photo instead of video", "Foto wird gelesen …": "Reading photo …",
+  "Im Foto wurde kein Code gefunden – bitte den Code scharf, gerade und ohne Spiegelung aufnehmen.":
+    "No code found in the photo – please take it sharp, straight and without glare.",
 };
 const EN_MUSTER = [
   [/^bestellt: (.+)$/, "ordered: $1"], [/^am (\d{4}-\d{2}-\d{2})$/, "on $1"], [/^Menge je Gebinde \((.*)\)$/, "Amount per container ($1)"],
