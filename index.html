@@ -6,7 +6,7 @@
      dieser Seite, Supabase und dem ZXing-WASM. NACH JEDER AENDERUNG AM SKRIPT die Pruefsumme neu setzen:
      py -c "import sys; sys.path.insert(0, 'scripts'); import matucana; print(matucana.csp_aktualisieren('matucana/index.html'))"
      (tests\b2_server_test.py prueft, dass sie passt – sonst laeuft die App nicht). -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-z9I82dy4ir7sHTzqFImbKK9kUjyDqWx4XlbDuRX9GNY=' https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.5/ 'wasm-unsafe-eval'; style-src 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; connect-src 'self' https://*.supabase.co https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.5/; manifest-src 'self'; worker-src blob:; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-0wpFDw4kMMR9uE65XGld9nCK6Mja1lMQHAUKrHO/1gs=' https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.5/ 'wasm-unsafe-eval'; style-src 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; connect-src 'self' https://*.supabase.co https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.5/; manifest-src 'self'; worker-src blob:; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#2e7d4f">
 <title>Matucana · ScienceHub</title>
@@ -76,6 +76,17 @@
   .wahl { display: flex; gap: 8px; margin-bottom: 12px; }
   .wahl button { flex: 1; padding: 9px; border-radius: 8px; border: 1px solid var(--linie); background: #fff; font-size: 15px; color: var(--grau); }
   .wahl button.an { border-color: var(--gruen); color: var(--gruen); font-weight: 600; background: var(--gruen-hell); }
+  /* DC-Foto mit Fuehrung (M-1, ab Maurice 0.026): Leinwand in voller Breite, Ziehen ohne Mitscrollen */
+  canvas.dc-leinwand { width: 100%; height: auto; display: block; margin-top: 10px; border-radius: 8px; background: #222; touch-action: none; }
+  canvas.dc-fuehrung { width: 60%; max-width: 260px; margin: 10px auto 0; background: #3a3f45; touch-action: auto; }
+  .dc-schritt { font-size: 12px; font-weight: 600; color: var(--gruen); text-transform: uppercase; letter-spacing: .03em; }
+  .dc-bahn { display: flex; align-items: center; gap: 6px; padding: 8px 0; border-top: 1px solid var(--linie); }
+  .dc-bahn:first-child { border-top: 0; }
+  .dc-bahn .nr { width: 58px; font-weight: 600; color: #b8641a; flex: none; }
+  .dc-bahn .pr { flex: 1; min-width: 0; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dc-bahn button { flex: none; padding: 7px 10px; }
+  .zwei { display: flex; gap: 8px; }
+  .zwei > div { flex: 1; min-width: 0; }
 </style>
 </head>
 <body>
@@ -187,18 +198,92 @@
   <div class="karte versteckt" id="probe"></div>
 </main>
 
-<!-- Rhipsalis: DC-Foto -->
-<main id="dc" class="versteckt">
+<!-- Obregonia: Proben-Inventur (OB-8, ab Maurice 0.027) -->
+<main id="pinventur" class="versteckt">
   <div class="karte">
+    <div class="knopfreihe">
+      <button class="haupt halb" id="pi-ort-scannen" type="button">📷 Lagerort scannen</button>
+      <button class="haupt halb hell" id="pi-orte-knopf" type="button">🗄 Lagerorte</button>
+    </div>
+    <div id="pi-meldung"></div>
+    <div class="klein" style="margin-top:10px">Proben-Inventur: erst den Lagerort scannen oder wählen, dann die Etiketten aller Proben dort scannen. „Ergebnis senden“ zeigt fehlende, falsch abgelegte und unbekannte Proben und trägt die Inventur in Obregonia ein.</div>
+  </div>
+  <div id="pi-orte"></div>
+  <div class="karte versteckt" id="pi-ort">
+    <b id="pi-ort-titel"></b>
+    <div class="klein" id="pi-zahl"></div>
+    <button class="haupt" id="pi-scannen" type="button">📷 Proben scannen</button>
+    <div class="knopfreihe" style="margin-top:8px">
+      <input id="pi-code" type="text" placeholder="Kennung eintippen" autocomplete="off">
+      <button class="leise" id="pi-code-knopf" type="button">＋</button>
+    </div>
+    <div id="pi-scan-meldung"></div>
+    <div id="pi-liste" style="margin-top:6px"></div>
+    <label class="klein" style="display:block;margin-top:12px"><input type="checkbox" id="pi-uebernehmen"> Lagerort der falsch abgelegten Proben auf diesen Lagerort setzen</label>
+    <button class="haupt" id="pi-senden" type="button">✓ Ergebnis senden</button>
+    <div id="pi-ergebnis"></div>
+  </div>
+</main>
+
+<!-- Rhipsalis: DC-Foto; ab Maurice 0.026 mit Fuehrung (M-1): Einblendung, Ecken, Entzerren, Start/Front/Bahnen, Proben je Bahn -->
+<main id="dc" class="versteckt">
+  <div class="karte" id="dc-start">
     <b>DC-Platte fotografieren</b>
     <div class="klein">Das Foto erscheint in Echinopsis unter Rhipsalis → DC als Entwurf zum Prüfen.</div>
     <label for="titel">Titel (optional)</label>
     <input id="titel" type="text" maxlength="200" placeholder="z. B. Extrakte Opuntia, Laufmittel A">
+    <div class="zwei">
+      <div><label for="dc-bahnen">Zahl der Bahnen</label><input id="dc-bahnen" type="number" inputmode="numeric" min="1" max="30" step="1" value="4"></div>
+      <div><label for="dc-groesse">Platte (Breite × Höhe)</label>
+        <select id="dc-groesse">
+          <option value="10x10">10 × 10 cm</option><option value="5x10">5 × 10 cm</option><option value="10x20">10 × 20 cm</option>
+          <option value="20x10">20 × 10 cm</option><option value="20x20">20 × 20 cm</option><option value="">andere Größe</option>
+        </select></div>
+    </div>
+    <canvas id="dc-fuehrung" class="dc-leinwand dc-fuehrung" width="300" height="300"></canvas>
+    <div class="klein" style="margin-top:8px">So fotografieren: Platte flach auf eine dunkle Unterlage, gerade von oben, ganze Platte im Bild, ohne Spiegelung. Startlinie unten, Front oben.</div>
     <label for="foto">Foto</label>
     <input id="foto" type="file" accept="image/*" capture="environment">
-    <img id="vorschau" class="vorschau versteckt" alt="">
-    <button class="haupt" id="hochladen" disabled>Hochladen</button>
     <div id="dc-meldung"></div>
+  </div>
+  <div class="karte versteckt" id="dc-ecken">
+    <div class="dc-schritt">Schritt 1 von 3</div>
+    <b>Ecken der Platte</b>
+    <div class="klein">Die vier runden Griffe auf die Ecken der Platte ziehen. Die Einblendung zeigt Plattenrahmen, Startlinie (grün), Frontlinie (blau) und Bahnen (orange). Steht die Platte auf dem Kopf oder quer: „↻ Drehen“.</div>
+    <canvas id="dc-ecken-bild" class="dc-leinwand"></canvas>
+    <div class="knopfreihe" style="margin-top:8px;flex-wrap:wrap">
+      <button class="leise" id="dc-auto" type="button">✨ Ecken suchen</button>
+      <button class="leise" id="dc-drehen" type="button">↻ Drehen</button>
+      <button class="leise" id="dc-ohne" type="button">Ohne Entzerren</button>
+      <button class="leise" id="dc-neu" type="button">📷 Neues Foto</button>
+    </div>
+    <button class="haupt" id="dc-entzerren" type="button">Entzerren und zuschneiden</button>
+    <button class="leise" id="dc-direkt" type="button" style="margin-top:8px;width:100%">Ohne Führung hochladen (wie bisher)</button>
+    <div id="dc-ecken-meldung"></div>
+  </div>
+  <div class="karte versteckt" id="dc-linien">
+    <div class="dc-schritt">Schritt 2 von 3</div>
+    <b>Startlinie, Frontlinie und Bahnen</b>
+    <div class="klein">Linien mit dem Finger auf die Platte ziehen: Startlinie (grün), Frontlinie (blau), Bahnen (orange) auf die Mitte der Auftragspunkte.</div>
+    <canvas id="dc-linien-bild" class="dc-leinwand"></canvas>
+    <div class="knopfreihe" style="margin-top:8px;flex-wrap:wrap">
+      <button class="leise" id="dc-verteilen" type="button">Bahnen gleichmäßig</button>
+      <button class="leise" id="dc-minus" type="button">− Bahn</button>
+      <button class="leise" id="dc-plus" type="button">＋ Bahn</button>
+      <button class="leise" id="dc-zu-ecken" type="button">‹ Ecken</button>
+    </div>
+    <button class="haupt" id="dc-weiter" type="button">Weiter: Proben zuordnen</button>
+  </div>
+  <div class="karte versteckt" id="dc-proben">
+    <div class="dc-schritt">Schritt 3 von 3</div>
+    <b>Proben je Bahn (optional)</b>
+    <div class="klein">Je Bahn das Proben-Etikett scannen oder die Probe suchen. Ohne Zuordnung lässt sich das in Rhipsalis am PC nachholen.</div>
+    <div id="dc-bahnliste" style="margin-top:6px"></div>
+    <div class="knopfreihe" style="margin-top:12px">
+      <button class="haupt halb hell" id="dc-zu-linien" type="button">‹ Linien</button>
+      <button class="haupt halb" id="hochladen" type="button">Hochladen</button>
+    </div>
+    <div id="dc-hoch-meldung"></div>
   </div>
 </main>
 
@@ -222,7 +307,7 @@
 <footer>
   <div class="knopfreihe" style="justify-content:center"><span id="abmelden-zeile" class="versteckt"><button class="leise" id="abmelden">Abmelden</button></span>
     <button class="leise" id="sprache" type="button">🇬🇧 English</button></div>
-  <div style="margin-top:10px">Matucana · Schnittstelle <span id="version">Maurice 0.025</span> · ScienceHub, CAU Kiel</div>
+  <div style="margin-top:10px">Matucana · Schnittstelle <span id="version">Maurice 0.027</span> · ScienceHub, CAU Kiel</div>
 </footer>
 
 <!-- Scanner fuer QR, DataMatrix (GS1) und Strichcodes, auch auf dem iPhone (zxing-cpp als zxing-wasm, MIT-Lizenz) -->
@@ -230,7 +315,7 @@
         integrity="sha256-Io5tjMuEHFRDhu6v1fGClNPkqg56ogQZvFGgAJudPBc=" crossorigin="anonymous"></script>
 <script>
 "use strict";
-const VERSION = "Maurice 0.025";   // 0.025: Inhaltsrichtlinie (CSP) – nur dieses Skript, ZXing und die Supabase-Adresse; gemerkte Anmeldung hoechstens 14 Tage (S-12); 0.024: Abmelden auch beim Server (/auth/v1/logout), Zwischenstaende im Handy loeschen, wartende Meldungen nur nach Rueckfrage verwerfen (M-2/M-3, Testbericht 08.11.2026); 0.023: Was ist leer? auch bald knappe Artikel (Verbrauchsprognose); 0.022: Kachel „Was ist leer?“ (E-8, SP 1); 0.021: GS1 Digital Link, fremde Adressen nur nach Rueckfrage; 0.019: Proben ohne Etikett – fremden Code zuordnen, neue Probe anlegen (F3); 0.018: Scanner zxing-cpp (WASM) statt ZXing-JS, hohe Aufloesung mit Fokus/Zoom, „Foto statt Video“ fuer kleine Codes; 0.017: Wareneingang auch fuer vergangene Bestellungen (noch nicht im Bestand, Suche, Scan); 0.016: Kachel Wareneingang (Lieferung per Scan bestaetigen, Teillieferung, Artikel waehlen/anlegen); 0.015: Gebinde ohne Etikett per Hersteller-Code erfassen (zuordnen oder neu anlegen), fremde Codes abgewiesen, Englisch umschaltbar; 0.014: Einheit nur als Text (A8), ZXing mit Pruefsumme (SRI)
+const VERSION = "Maurice 0.027";   // 0.027: Kachel Proben-Inventur (OB-8): Lagerort scannen/waehlen, Proben scannen, Vergleich, Ergebnis senden (fehlend/falsch abgelegt/unbekannt, Lagerort uebernehmen); 0.026: DC-Foto mit Fuehrung (M-1): Skizze vor der Aufnahme, Ecken antippen/vorschlagen mit Einblendung, Entzerren, Start/Front/Bahnen ziehen, Proben je Bahn, Geometrie an dc_foto_hochladen, ohne Netz in die Warteschlange; 0.025: Inhaltsrichtlinie (CSP) – nur dieses Skript, ZXing und die Supabase-Adresse; gemerkte Anmeldung hoechstens 14 Tage (S-12); 0.024: Abmelden auch beim Server (/auth/v1/logout), Zwischenstaende im Handy loeschen, wartende Meldungen nur nach Rueckfrage verwerfen (M-2/M-3, Testbericht 08.11.2026); 0.023: Was ist leer? auch bald knappe Artikel (Verbrauchsprognose); 0.022: Kachel „Was ist leer?“ (E-8, SP 1); 0.021: GS1 Digital Link, fremde Adressen nur nach Rueckfrage; 0.019: Proben ohne Etikett – fremden Code zuordnen, neue Probe anlegen (F3); 0.018: Scanner zxing-cpp (WASM) statt ZXing-JS, hohe Aufloesung mit Fokus/Zoom, „Foto statt Video“ fuer kleine Codes; 0.017: Wareneingang auch fuer vergangene Bestellungen (noch nicht im Bestand, Suche, Scan); 0.016: Kachel Wareneingang (Lieferung per Scan bestaetigen, Teillieferung, Artikel waehlen/anlegen); 0.015: Gebinde ohne Etikett per Hersteller-Code erfassen (zuordnen oder neu anlegen), fremde Codes abgewiesen, Englisch umschaltbar; 0.014: Einheit nur als Text (A8), ZXing mit Pruefsumme (SRI)
 const FOTO_PX = 2400;   // laengste Kante nach dem Verkleinern
 const ANMELDUNG_TAGE = 14;   // S-12: so lange bleibt man auf dem Handy angemeldet (danach Passwort neu, der Passwort-Manager hilft)
 let K = null;           // {url, apikey} aus konfig.json
@@ -245,6 +330,7 @@ const KACHELN = [
   { id: "wareneingang", sym: "🚚", titel: "Wareneingang", prog: "Parodia", farbe: "#b07a00" },
   { id: "leer", sym: "🛒", titel: "Was ist leer?", prog: "Parodia", farbe: "#b07a00" },
   { id: "proben", sym: "🌵", titel: "Proben", prog: "Obregonia", farbe: "#2e7d32" },
+  { id: "pinventur", sym: "🗃", titel: "Proben-Inventur", prog: "Obregonia", farbe: "#2e7d32" },
   { id: "dc", sym: "📷", titel: "DC-Foto", prog: "Rhipsalis", farbe: "#5d8a2e" },
   { id: "geraete", sym: "📅", titel: "Wer misst heute?", prog: "Geräte (openIRIS)", farbe: "#1f4e9c" },
 ];
@@ -356,7 +442,7 @@ async function pufferSenden(vonHand) {
     for (const x of puffer()) {
       if (x.wer !== ich.name) continue;
       const arg = Object.assign({}, x.argumente);
-      arg.bemerkung = [arg.bemerkung, `offline erfasst ${standText(x.zeit)}`].filter(Boolean).join(" · ");
+      if ("bemerkung" in arg) arg.bemerkung = [arg.bemerkung, `offline erfasst ${standText(x.zeit)}`].filter(Boolean).join(" · ");   // DC-Foto: Zeit steht im Titel
       try { await rpc(x.funktion, arg); }
       catch (e) {
         if (e.offline) { if (vonHand) pufferFehler = ["Noch immer kein Netz – die Meldungen bleiben gespeichert."]; break; }
@@ -1458,40 +1544,532 @@ async function buchungenZeigen() {
   } catch (e) { z.innerHTML = ""; const m = document.createElement("div"); m.id = "g-meldung"; z.appendChild(m); meldung("g-meldung", e.message, "fehler"); }
 }
 
-// ---- DC-Foto
-let fotoDaten = null;
+// ---- Proben-Inventur (Obregonia, OB-8, ab Maurice 0.027): Lagerort scannen oder waehlen, dann die Proben dort scannen (der Scanner
+// startet nach jedem Treffer neu, bis „Abbrechen“). Vergleich vorab im Handy mit der Liste des Servers (proben_inventur_liste);
+// „Ergebnis senden“ (proben_inventur_melden) prueft alle Codes im Server und traegt Verlauf und Protokoll ein.
+let piOrt = null, piErwartet = [], piCodes = [];
+oeffnen.pinventur = () => { if (!piOrt) piOrteZeigen(); };
+$("pi-orte-knopf").onclick = () => { piOrt = null; $("pi-ort").classList.add("versteckt"); piOrteZeigen(); };
+$("pi-ort-scannen").onclick = () => scannen(text => {
+  const t = String(text || "").trim();
+  if (gebindeAusText(t) || /[#?&]p=\d+/.test(t)) { meldung("pi-meldung", "Das ist kein Lagerort-Etikett – bitte zuerst den Lagerort scannen oder wählen.", "fehler"); return; }
+  piListe(t);
+}, "pi-meldung", "Lagerort-Etikett");
 
-async function verkleinern(datei) {
-  const bild = await createImageBitmap(datei, { imageOrientation: "from-image" });
-  const f = Math.min(1, FOTO_PX / Math.max(bild.width, bild.height));
-  const c = document.createElement("canvas");
-  c.width = Math.round(bild.width * f); c.height = Math.round(bild.height * f);
-  c.getContext("2d").drawImage(bild, 0, 0, c.width, c.height);
-  return c.toDataURL("image/jpeg", 0.9);
+async function piOrteZeigen() {
+  meldung("pi-meldung", "");
+  const z = $("pi-orte"); z.innerHTML = '<div class="klein">Lade Lagerorte …</div>';
+  try {
+    const orte = await rpc("proben_lagerorte", {});
+    z.innerHTML = orte.length ? "" : '<div class="klein">Keine Proben mit Lagerort.</div>';
+    for (const o of orte) {
+      const b = document.createElement("button"); b.type = "button"; b.className = "ort"; b.textContent = o;
+      b.onclick = () => piListe(o);
+      z.appendChild(b);
+    }
+  } catch (e) { z.innerHTML = ""; meldung("pi-meldung", e.message, "fehler"); }
 }
 
-$("foto").onchange = async () => {
-  meldung("dc-meldung", ""); fotoDaten = null; $("hochladen").disabled = true;
-  const datei = $("foto").files[0];
-  if (!datei) { $("vorschau").classList.add("versteckt"); return; }
+async function piListe(ort) {
+  meldung("pi-meldung", ""); meldung("pi-ergebnis", "");
   try {
-    fotoDaten = await verkleinern(datei);
-    $("vorschau").src = fotoDaten; $("vorschau").classList.remove("versteckt");
-    $("hochladen").disabled = false;
-  } catch (e) { meldung("dc-meldung", "Das Foto lässt sich nicht lesen.", "fehler"); }
+    piErwartet = await rpc("proben_inventur_liste", { lagerort: ort });
+  } catch (e) { meldung("pi-meldung", e.message, "fehler"); return; }
+  piOrt = ort; piCodes = [];
+  $("pi-orte").innerHTML = ""; $("pi-ort").classList.remove("versteckt"); $("pi-ort-titel").textContent = ort;
+  const lesend = !ich || ich.rolle === "lesen";
+  $("pi-senden").classList.toggle("versteckt", lesend); $("pi-uebernehmen").checked = false;
+  piZeigen();
+}
+
+function piTreffer(code) {   // Code -> erwartete Probe oder null (genau wie im Server: #p=<id> oder Kennung, Gross/klein egal)
+  const p = /[#?&]p=(\d+)/.exec(code);
+  return piErwartet.find(x => p ? String(x.probe_id) === p[1] : String(x.kennung).toLowerCase() === code.toLowerCase()) || null;
+}
+
+function piZeigen() {
+  const z = $("pi-liste"); z.innerHTML = "";
+  const gefunden = new Set(piCodes.map(piTreffer).filter(Boolean).map(x => x.probe_id));
+  $("pi-zahl").textContent = `${gefunden.size} von ${piErwartet.length} erwarteten Proben gescannt`;
+  for (const x of piErwartet) {
+    const d = document.createElement("div"); d.className = "geb" + (gefunden.has(x.probe_id) ? " gewaehlt" : "");
+    d.innerHTML = "<span></span><span class='klein'></span>";
+    d.firstChild.textContent = `${gefunden.has(x.probe_id) ? "✓" : "○"} ${x.kennung}`; d.lastChild.textContent = x.bezeichnung || x.art || "";
+    z.appendChild(d);
+  }
+  const fremd = piCodes.filter(c => !piTreffer(c));
+  if (fremd.length) {
+    const h = document.createElement("div"); h.className = "gruppe"; h.textContent = "Nicht in der Liste (prüft der Server)"; z.appendChild(h);
+    for (const c of fremd) { const d = document.createElement("div"); d.className = "klein"; d.textContent = c; z.appendChild(d); }
+  }
+}
+
+function piCode(text) {
+  const c = String(text || "").trim();
+  if (!c) return false;
+  if (gebindeAusText(c)) { meldung("pi-scan-meldung", "Das ist ein Gebinde-Etikett (Parodia), keine Probe.", "fehler"); return false; }
+  if (piCodes.includes(c)) { meldung("pi-scan-meldung", "Schon gescannt.", "ok"); return true; }
+  piCodes.push(c);
+  const t = piTreffer(c);
+  meldung("pi-scan-meldung", t ? `✓ ${t.kennung}` : `? ${c} – nicht an diesem Lagerort erwartet`, t ? "ok" : "fehler");
+  piZeigen();
+  return true;
+}
+
+function piScannen() {
+  scannen(text => { if (piCode(text) && piOrt) setTimeout(piScannen, 700); }, "pi-scan-meldung", "Proben-Etikett (QR-Code oder Kennung)");
+}
+$("pi-scannen").onclick = piScannen;
+$("pi-code-knopf").onclick = () => { piCode($("pi-code").value); $("pi-code").value = ""; };
+$("pi-code").addEventListener("keydown", ev => { if (ev.key === "Enter") { ev.preventDefault(); $("pi-code-knopf").onclick(); } });
+
+$("pi-senden").onclick = async () => {
+  if (!piOrt) return;
+  const knopf = $("pi-senden"); knopf.disabled = true;
+  try {
+    const r = await rpc("proben_inventur_melden", { lagerort: piOrt, codes: piCodes, uebernehmen: $("pi-uebernehmen").checked });
+    const z = $("pi-ergebnis"); z.innerHTML = "";
+    const kopf = document.createElement("div"); kopf.className = "meldung ok";
+    kopf.textContent = `Inventur gespeichert: ${r.ok.length} vorhanden, ${r.fehlend.length} nicht gefunden, ${r.falsch.length} falsch abgelegt, ${r.unbekannt.length} unbekannt.`;
+    z.appendChild(kopf);
+    const gruppe = (titel, zeilen) => {
+      if (!zeilen.length) return;
+      const h = document.createElement("div"); h.className = "gruppe"; h.textContent = titel; z.appendChild(h);
+      for (const t of zeilen) { const d = document.createElement("div"); d.className = "klein"; d.textContent = t; z.appendChild(d); }
+    };
+    gruppe("Nicht gefunden", r.fehlend.map(x => `${x.kennung} · ${x.bezeichnung || ""}`));
+    gruppe("Falsch abgelegt", r.falsch.map(x => `${x.kennung} · erfasst: ${x.lagerort_erfasst || "–"}` + (r.umgelagert ? " → " + r.lagerort : "")));
+    gruppe("Unbekannte Codes", r.unbekannt);
+    uebersetzen(z);
+  } catch (e) { meldung("pi-ergebnis", e.message, "fehler"); }
+  finally { knopf.disabled = false; }
 };
 
-$("hochladen").onclick = async () => {
-  if (!fotoDaten) return;
-  $("hochladen").disabled = true;
-  meldung("dc-meldung", "Wird hochgeladen …", "ok");
+// ---- DC-Foto (Rhipsalis). Ab Maurice 0.026 mit Fuehrung (M-1, Santa Anna 2): vor der Aufnahme eine Skizze (Rahmen, Start, Front,
+// Bahnen); nach der Aufnahme die Ecken der Platte (Vorschlag aus dem Bild, mit dem Finger verschiebbar, darin die Einblendung
+// perspektivisch), Entzerren auf ein gerades Rechteck im Seitenverhaeltnis der Platte, Start/Front/Bahnen ziehen, Proben je Bahn (QR
+// oder Suche). Gesendet werden das entzerrte Foto und die Geometrie (relativ 0..1); Rhipsalis setzt damit Rf und Bahnen ohne
+// Nacharbeit. Live-Vorschau gibt es bewusst nicht: die normale Kamera (volle Aufloesung, auch auf dem iPhone) nimmt auf.
+
+// ---- M-1 Geometrie BEGINN (rein rechnerisch, ohne Seite; tests\m1_dc_foto_test.py rechnet dieselben Formeln nach)
+function gleichungLoesen(A, b) {   // Gauss mit Spaltenpivot -> x mit A x = b
+  const n = b.length, M = A.map((z, i) => z.concat([b[i]]));
+  for (let k = 0; k < n; k++) {
+    let p = k;
+    for (let i = k + 1; i < n; i++) if (Math.abs(M[i][k]) > Math.abs(M[p][k])) p = i;
+    if (Math.abs(M[p][k]) < 1e-12) throw new Error("Die Ecken liegen auf einer Linie.");
+    const t = M[k]; M[k] = M[p]; M[p] = t;
+    for (let i = k + 1; i < n; i++) { const f = M[i][k] / M[k][k]; for (let j = k; j <= n; j++) M[i][j] -= f * M[k][j]; }
+  }
+  const x = new Array(n);
+  for (let i = n - 1; i >= 0; i--) { let s = M[i][n]; for (let j = i + 1; j < n; j++) s -= M[i][j] * x[j]; x[i] = s / M[i][i]; }
+  return x;
+}
+function homographie(von, nach) {   // 4 Punktpaare -> h[0..7] (h8 = 1) mit nach = H(von)
+  const A = [], b = [];
+  for (let i = 0; i < 4; i++) {
+    const [x, y] = von[i], [u, v] = nach[i];
+    A.push([x, y, 1, 0, 0, 0, -u * x, -u * y]); b.push(u);
+    A.push([0, 0, 0, x, y, 1, -v * x, -v * y]); b.push(v);
+  }
+  return gleichungLoesen(A, b);
+}
+function abbilden(h, x, y) { const w = h[6] * x + h[7] * y + 1; return [(h[0] * x + h[1] * y + h[2]) / w, (h[3] * x + h[4] * y + h[5]) / w]; }
+function eckenGueltig(e) {   // Viereck OL, OR, UR, UL: konvex (alle Knicke in dieselbe Richtung)
+  let vz = 0;
+  for (let i = 0; i < 4; i++) {
+    const [ax, ay] = e[i], [bx, by] = e[(i + 1) % 4], [cx, cy] = e[(i + 2) % 4];
+    const k = (bx - ax) * (cy - by) - (by - ay) * (cx - bx);
+    if (Math.abs(k) < 1e-9) return false;
+    if (vz === 0) vz = Math.sign(k); else if (Math.sign(k) !== vz) return false;
+  }
+  return true;
+}
+const abstand = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+function seitenverhaeltnis(e) {   // Breite/Hoehe der Platte aus den Ecken (Mittel gegenueberliegender Kanten)
+  return (abstand(e[0], e[1]) + abstand(e[3], e[2])) / Math.max(1e-9, abstand(e[0], e[3]) + abstand(e[1], e[2]));
+}
+function zielgroesse(verh, lang) {
+  return verh >= 1 ? [lang, Math.max(1, Math.round(lang / verh))] : [Math.max(1, Math.round(lang * verh)), lang];
+}
+function entzerrenPixel(q, qb, qh, ecken, zb, zh) {   // RGBA-Quelle qb x qh, Ecken OL, OR, UR, UL -> RGBA-Ziel zb x zh (bilinear)
+  const h = homographie([[0, 0], [zb, 0], [zb, zh], [0, zh]], ecken), z = new Uint8ClampedArray(zb * zh * 4);
+  for (let y = 0; y < zh; y++) {
+    for (let x = 0; x < zb; x++) {
+      const px = x + 0.5, py = y + 0.5, w = h[6] * px + h[7] * py + 1;
+      const sx = Math.min(qb - 1, Math.max(0, (h[0] * px + h[1] * py + h[2]) / w - 0.5));
+      const sy = Math.min(qh - 1, Math.max(0, (h[3] * px + h[4] * py + h[5]) / w - 0.5));
+      const x0 = Math.floor(sx), y0 = Math.floor(sy), x1 = Math.min(qb - 1, x0 + 1), y1 = Math.min(qh - 1, y0 + 1), fx = sx - x0, fy = sy - y0;
+      const i00 = (y0 * qb + x0) * 4, i10 = (y0 * qb + x1) * 4, i01 = (y1 * qb + x0) * 4, i11 = (y1 * qb + x1) * 4, o = (y * zb + x) * 4;
+      for (let k = 0; k < 3; k++)
+        z[o + k] = (q[i00 + k] * (1 - fx) + q[i10 + k] * fx) * (1 - fy) + (q[i01 + k] * (1 - fx) + q[i11 + k] * fx) * fy;
+      z[o + 3] = 255;
+    }
+  }
+  return z;
+}
+function otsu(g) {   // Schwelle zwischen zwei Helligkeitsklassen (Graustufen 0..255)
+  const hist = new Array(256).fill(0);
+  for (let i = 0; i < g.length; i++) hist[g[i]]++;
+  let summe = 0; for (let i = 0; i < 256; i++) summe += i * hist[i];
+  let sB = 0, wB = 0, best = -1, schwelle = 127;
+  for (let t = 0; t < 256; t++) {
+    wB += hist[t]; if (!wB) continue;
+    const wF = g.length - wB; if (!wF) break;
+    sB += t * hist[t];
+    const v = wB * wF * (sB / wB - (summe - sB) / wF) ** 2;
+    if (v > best) { best = v; schwelle = t; }
+  }
+  return schwelle;
+}
+function eckenSuchen(g, b, h) {   // Vorschlag: zusammenhaengende Flaeche der Bildmitte (Platte hell auf dunkel oder umgekehrt) -> OL, OR, UR, UL
+  const s = otsu(g), x0 = Math.floor(b * 0.4), x1 = Math.ceil(b * 0.6), y0 = Math.floor(h * 0.4), y1 = Math.ceil(h * 0.6);
+  let n_hell = 0, n_mitte = 0;
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { n_mitte++; if (g[y * b + x] > s) n_hell++; }
+  const hell = n_hell * 2 >= n_mitte;
+  let start = -1;
+  for (let r = 0; r < Math.max(b, h) / 2 && start < 0; r++)   // naechster Bildpunkt der Mehrheitsklasse zur Mitte
+    for (let y = Math.floor(h / 2) - r; y <= Math.floor(h / 2) + r && start < 0; y++)
+      for (let x = Math.floor(b / 2) - r; x <= Math.floor(b / 2) + r; x++)
+        if (x >= 0 && y >= 0 && x < b && y < h && (g[y * b + x] > s) === hell) { start = y * b + x; break; }
+  if (start < 0) return null;
+  const m = new Uint8Array(b * h), stapel = [start];
+  m[start] = 1;
+  let n = 0, sMin = Infinity, sMax = -Infinity, dMin = Infinity, dMax = -Infinity, ol = null, or = null, ur = null, ul = null;
+  while (stapel.length) {
+    const i = stapel.pop(), x = i % b, y = (i - x) / b;
+    n++;
+    if (x + y < sMin) { sMin = x + y; ol = [x, y]; }
+    if (x + y > sMax) { sMax = x + y; ur = [x + 1, y + 1]; }
+    if (x - y > dMax) { dMax = x - y; or = [x + 1, y]; }
+    if (x - y < dMin) { dMin = x - y; ul = [x, y + 1]; }
+    const nb = [x > 0 ? i - 1 : -1, x < b - 1 ? i + 1 : -1, y > 0 ? i - b : -1, y < h - 1 ? i + b : -1];
+    for (const j of nb) if (j >= 0 && !m[j] && (g[j] > s) === hell) { m[j] = 1; stapel.push(j); }
+  }
+  if (n < 0.08 * b * h || n > 0.97 * b * h) return null;
+  const e = [ol, or, ur, ul];
+  return eckenGueltig(e) && abstand(ol, ur) > 0.2 * Math.hypot(b, h) ? e : null;
+}
+function bahnenVerteilen(n, von, bis) {   // n Bahnen gleichmaessig; ohne Grenzen mit 1 cm Rand bei 10 cm Platte
+  if (von === undefined || n < 2 || bis - von < 0.02 * n) return Array.from({ length: n }, (_, i) => Math.round((0.1 + (i + 0.5) * 0.8 / n) * 1e4) / 1e4);
+  return Array.from({ length: n }, (_, i) => Math.round((von + i * (bis - von) / (n - 1)) * 1e4) / 1e4);
+}
+// ---- M-1 Geometrie ENDE
+
+const DC_LANG = 1400;   // laengste Kante des entzerrten Fotos (Rhipsalis wertet mit hoechstens 1400 px aus)
+const DC = { quelle: null, qb: 0, qh: 0, ecken: null, bild: null, entzerrt: false, start: 0.9, front: 0.1, bahnen: [], griff: null, name: "Smartphone.jpg" };
+const r4 = v => Math.round(v * 1e4) / 1e4;
+const dcBahnzahl = () => Math.max(1, Math.min(30, Math.round(Number($("dc-bahnen").value) || 1)));
+const dcPlatte = () => { const m = /^(\d+)x(\d+)$/.exec($("dc-groesse").value); return m ? [Number(m[1]), Number(m[2])] : null; };
+const pxProCss = c => c.width / (c.getBoundingClientRect().width || c.width);
+function leinwandPunkt(c, ev) { const r = c.getBoundingClientRect(); return [(ev.clientX - r.left) * c.width / r.width, (ev.clientY - r.top) * c.height / r.height]; }
+function dcSchritt(id) {
+  for (const k of ["dc-start", "dc-ecken", "dc-linien", "dc-proben"]) $(k).classList.toggle("versteckt", k !== id);
+  window.scrollTo(0, 0);
+}
+
+// Einblendung: Plattenrahmen, Frontlinie (blau), Startlinie (gruen), Bahnen (orange); abb bildet Plattenlage (u, v 0..1) auf die Leinwand ab
+function einblendung(g, abb, xs, st, fr, s, rahmen) {
+  const linie = (a, b, farbe, breite, strich) => {
+    const p = abb(a[0], a[1]), q = abb(b[0], b[1]);
+    g.beginPath(); g.setLineDash(strich ? strich.map(v => v * s) : []); g.strokeStyle = farbe; g.lineWidth = breite * s;
+    g.moveTo(p[0], p[1]); g.lineTo(q[0], q[1]); g.stroke();
+  };
+  g.save();
+  if (rahmen) for (const [a, b] of [[[0, 0], [1, 0]], [[1, 0], [1, 1]], [[1, 1], [0, 1]], [[0, 1], [0, 0]]]) linie(a, b, "#ffffff", 2, [7, 5]);
+  linie([0, fr], [1, fr], "#2f7fe0", 3);
+  linie([0, st], [1, st], "#2eaa4f", 3);
+  g.font = `bold ${13 * s}px sans-serif`; g.textAlign = "center"; g.textBaseline = "middle"; g.setLineDash([]);
+  xs.forEach((x, i) => {
+    linie([x, fr], [x, st], "#f08a24", 2.5, [6, 4]);
+    const p = abb(x, Math.min(0.99, st + (1 - st) / 2));
+    g.lineWidth = 3 * s; g.strokeStyle = "rgba(0,0,0,.7)"; g.strokeText(String(i + 1), p[0], p[1]);
+    g.fillStyle = "#f08a24"; g.fillText(String(i + 1), p[0], p[1]);
+  });
+  g.restore();
+}
+
+function dcFuehrungZeichnen() {   // Skizze vor der Aufnahme
+  const c = $("dc-fuehrung"), g = c.getContext("2d"), p = dcPlatte() || [10, 10], v = p[0] / p[1];
+  let pb = c.width - 60, ph = pb / v;
+  if (ph > c.height - 60) { ph = c.height - 60; pb = ph * v; }
+  const x0 = (c.width - pb) / 2, y0 = (c.height - ph) / 2;
+  g.fillStyle = "#3a3f45"; g.fillRect(0, 0, c.width, c.height);
+  g.fillStyle = "#f4f3ee"; g.fillRect(x0, y0, pb, ph);
+  einblendung(g, (u, w) => [x0 + u * pb, y0 + w * ph], bahnenVerteilen(dcBahnzahl()), 0.9, 0.1, c.width / 260, true);
+}
+$("dc-bahnen").addEventListener("input", dcFuehrungZeichnen);
+$("dc-groesse").addEventListener("change", dcFuehrungZeichnen);
+oeffnen.dc = () => { if ($("dc-start").classList.contains("versteckt") === false) dcFuehrungZeichnen(); };
+
+function dcGrau(maxPx) {   // verkleinertes Graubild fuer den Ecken-Vorschlag
+  const f = Math.min(1, maxPx / Math.max(DC.qb, DC.qh)), b = Math.max(1, Math.round(DC.qb * f)), h = Math.max(1, Math.round(DC.qh * f));
+  const c = document.createElement("canvas"); c.width = b; c.height = h;
+  const g = c.getContext("2d", { willReadFrequently: true }); g.drawImage(DC.quelle, 0, 0, b, h);
+  const d = g.getImageData(0, 0, b, h).data, grau = new Uint8Array(b * h);
+  for (let i = 0; i < b * h; i++) grau[i] = (d[4 * i] * 299 + d[4 * i + 1] * 587 + d[4 * i + 2] * 114) / 1000;
+  return { grau, b, h, f };
+}
+function dcEckenVorschlag() {
   try {
-    const name = ($("foto").files[0] && $("foto").files[0].name || "Smartphone.jpg").replace(/\.[^.]+$/, "") + ".jpg";
-    const r = await rpc("dc_foto_hochladen", { foto_base64: fotoDaten, dateiname: name, titel: $("titel").value });
-    meldung("dc-meldung", `Hochgeladen (${Math.round(r.groesse / 1024)} kB). In Echinopsis unter Rhipsalis → DC als Entwurf.`, "ok");
-    fotoDaten = null; $("foto").value = ""; $("titel").value = ""; $("vorschau").classList.add("versteckt");
-  } catch (e) { meldung("dc-meldung", e.message, "fehler"); $("hochladen").disabled = false; }
+    const { grau, b, h, f } = dcGrau(240), e = eckenSuchen(grau, b, h);
+    if (e) return e.map(([x, y]) => [Math.min(DC.qb, x / f), Math.min(DC.qh, y / f)]);
+  } catch (e) {}
+  return null;
+}
+const dcEckenStandard = () => [[0.08 * DC.qb, 0.08 * DC.qh], [0.92 * DC.qb, 0.08 * DC.qh], [0.92 * DC.qb, 0.92 * DC.qh], [0.08 * DC.qb, 0.92 * DC.qh]];
+
+$("foto").onchange = async () => {
+  meldung("dc-meldung", "");
+  const datei = $("foto").files[0];
+  if (!datei) return;
+  try {
+    const bild = await createImageBitmap(datei, { imageOrientation: "from-image" });
+    const f = Math.min(1, FOTO_PX / Math.max(bild.width, bild.height)), c = document.createElement("canvas");
+    c.width = Math.round(bild.width * f); c.height = Math.round(bild.height * f);
+    c.getContext("2d").drawImage(bild, 0, 0, c.width, c.height);
+    Object.assign(DC, { quelle: c, qb: c.width, qh: c.height, bild: null, entzerrt: false, start: 0.9, front: 0.1, griff: null,
+                        name: (datei.name || "Smartphone.jpg").replace(/\.[^.]+$/, "") + ".jpg",
+                        bahnen: bahnenVerteilen(dcBahnzahl()).map(x => ({ x, probe: null })) });
+  } catch (e) { meldung("dc-meldung", "Das Foto lässt sich nicht lesen.", "fehler"); return; }
+  const v = dcEckenVorschlag();
+  DC.ecken = v || dcEckenStandard();
+  meldung("dc-ecken-meldung", v ? "Ecken vorgeschlagen – bitte prüfen und genau auf die Ecken ziehen." : "Bitte die vier Griffe auf die Ecken der Platte ziehen.", "ok");
+  dcSchritt("dc-ecken"); dcEckenZeichnen();
 };
+
+// Schritt 1: Ecken
+function dcEckenZeichnen() {
+  const c = $("dc-ecken-bild"), f = Math.min(1, 1000 / Math.max(DC.qb, DC.qh));
+  if (c.width !== Math.round(DC.qb * f) || c.height !== Math.round(DC.qh * f)) { c.width = Math.round(DC.qb * f); c.height = Math.round(DC.qh * f); }
+  const g = c.getContext("2d"), s = pxProCss(c), e = DC.ecken.map(([x, y]) => [x * f, y * f]);
+  g.drawImage(DC.quelle, 0, 0, c.width, c.height);
+  g.save();
+  g.beginPath(); e.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.closePath();
+  g.lineWidth = 2 * s; g.strokeStyle = "#ffffff"; g.setLineDash([]); g.stroke();
+  if (eckenGueltig(e)) {
+    try {
+      const hu = homographie([[0, 0], [1, 0], [1, 1], [0, 1]], e);
+      einblendung(g, (u, v) => abbilden(hu, u, v), DC.bahnen.map(b => b.x), DC.start, DC.front, s, false);
+    } catch (x) {}
+  }
+  const namen = ["OL", "OR", "UR", "UL"];
+  e.forEach(([x, y], i) => {
+    g.beginPath(); g.arc(x, y, 15 * s, 0, 2 * Math.PI); g.fillStyle = DC.griff === i ? "rgba(46,125,79,.55)" : "rgba(255,255,255,.3)"; g.fill();
+    g.lineWidth = 2.5 * s; g.strokeStyle = "#2e7d4f"; g.stroke();
+    g.beginPath(); g.arc(x, y, 2.5 * s, 0, 2 * Math.PI); g.fillStyle = "#ff3b30"; g.fill();
+    g.font = `${11 * s}px sans-serif`; g.fillStyle = "#fff"; g.textAlign = "center"; g.fillText(namen[i], x, y - 20 * s);
+  });
+  if (DC.griff !== null) {   // Lupe: die Ecke unter dem Finger dreifach vergroessert in der gegenueberliegenden oberen Ecke
+    const [ex, ey] = DC.ecken[DC.griff], L = 120 * s, lx = (e[DC.griff][0] < c.width / 2) ? c.width - L - 8 * s : 8 * s, ly = 8 * s;
+    const r = (L / 2) / 3 / f;
+    g.save(); g.beginPath(); g.arc(lx + L / 2, ly + L / 2, L / 2, 0, 2 * Math.PI); g.clip();
+    g.fillStyle = "#000"; g.fillRect(lx, ly, L, L);
+    g.drawImage(DC.quelle, ex - r, ey - r, 2 * r, 2 * r, lx, ly, L, L);
+    g.restore();
+    g.beginPath(); g.arc(lx + L / 2, ly + L / 2, L / 2, 0, 2 * Math.PI); g.lineWidth = 2 * s; g.strokeStyle = "#fff"; g.stroke();
+    g.beginPath(); g.moveTo(lx + L / 2 - 12 * s, ly + L / 2); g.lineTo(lx + L / 2 + 12 * s, ly + L / 2);
+    g.moveTo(lx + L / 2, ly + L / 2 - 12 * s); g.lineTo(lx + L / 2, ly + L / 2 + 12 * s); g.strokeStyle = "#ff3b30"; g.lineWidth = 1.5 * s; g.stroke();
+  }
+  g.restore();
+}
+(() => {
+  const c = $("dc-ecken-bild");
+  let versatz = [0, 0];   // Griff bleibt relativ zum Finger, wo er gegriffen wurde (der Finger verdeckt die Ecke nicht)
+  c.addEventListener("pointerdown", ev => {
+    if (!DC.ecken) return;
+    const f = c.width / DC.qb, [x, y] = leinwandPunkt(c, ev), s = pxProCss(c);
+    let best = null, bd = 44 * s;
+    DC.ecken.forEach(([ex, ey], i) => { const d = Math.hypot(ex * f - x, ey * f - y); if (d < bd) { bd = d; best = i; } });
+    if (best === null) return;
+    DC.griff = best; versatz = [DC.ecken[best][0] - x / f, DC.ecken[best][1] - y / f];
+    c.setPointerCapture(ev.pointerId); ev.preventDefault(); dcEckenZeichnen();
+  });
+  c.addEventListener("pointermove", ev => {
+    if (DC.griff === null) return;
+    const f = c.width / DC.qb, [x, y] = leinwandPunkt(c, ev);
+    DC.ecken[DC.griff] = [Math.min(DC.qb, Math.max(0, x / f + versatz[0])), Math.min(DC.qh, Math.max(0, y / f + versatz[1]))];
+    ev.preventDefault(); dcEckenZeichnen();
+  });
+  const los = () => { if (DC.griff !== null) { DC.griff = null; dcEckenZeichnen(); } };
+  c.addEventListener("pointerup", los); c.addEventListener("pointercancel", los);
+})();
+$("dc-auto").onclick = () => {
+  const v = dcEckenVorschlag();
+  if (v) { DC.ecken = v; meldung("dc-ecken-meldung", "Ecken vorgeschlagen – bitte prüfen und genau auf die Ecken ziehen.", "ok"); }
+  else meldung("dc-ecken-meldung", "Keine Platte erkannt – bitte die Ecken von Hand ziehen.", "fehler");
+  dcEckenZeichnen();
+};
+$("dc-drehen").onclick = () => { const e = DC.ecken; DC.ecken = [e[3], e[0], e[1], e[2]]; dcEckenZeichnen(); };
+$("dc-neu").onclick = () => { $("foto").value = ""; dcSchritt("dc-start"); dcFuehrungZeichnen(); };
+$("dc-ohne").onclick = () => {   // schon gerade fotografiert/zugeschnitten: ganzes Foto, nur verkleinert
+  const f = Math.min(1, DC_LANG / Math.max(DC.qb, DC.qh)), c = document.createElement("canvas");
+  c.width = Math.round(DC.qb * f); c.height = Math.round(DC.qh * f); c.getContext("2d").drawImage(DC.quelle, 0, 0, c.width, c.height);
+  DC.bild = c; DC.entzerrt = false; dcSchritt("dc-linien"); dcLinienZeichnen();
+};
+$("dc-entzerren").onclick = () => {
+  if (!eckenGueltig(DC.ecken)) { meldung("dc-ecken-meldung", "Die Ecken bilden kein Viereck – bitte in der Reihenfolge OL, OR, UR, UL auf die Platte ziehen.", "fehler"); return; }
+  const p = dcPlatte(), [zb, zh] = zielgroesse(p ? p[0] / p[1] : seitenverhaeltnis(DC.ecken), DC_LANG);
+  meldung("dc-ecken-meldung", "Entzerre …", "ok"); $("dc-entzerren").disabled = true;
+  setTimeout(() => {   // erst die Meldung zeigen, dann rechnen
+    try {
+      const q = DC.quelle.getContext("2d").getImageData(0, 0, DC.qb, DC.qh).data;
+      const c = document.createElement("canvas"); c.width = zb; c.height = zh;
+      const g = c.getContext("2d"), z = g.createImageData(zb, zh);
+      z.data.set(entzerrenPixel(q, DC.qb, DC.qh, DC.ecken, zb, zh)); g.putImageData(z, 0, 0);
+      DC.bild = c; DC.entzerrt = true; meldung("dc-ecken-meldung", "");
+      dcSchritt("dc-linien"); dcLinienZeichnen();
+    } catch (e) { meldung("dc-ecken-meldung", e.message, "fehler"); }
+    finally { $("dc-entzerren").disabled = false; }
+  }, 30);
+};
+$("dc-direkt").onclick = () => dcHochladen(false);
+
+// Schritt 2: Start, Front, Bahnen ziehen
+function dcLinienZeichnen() {
+  const c = $("dc-linien-bild"), f = Math.min(1, 1000 / Math.max(DC.bild.width, DC.bild.height));
+  if (c.width !== Math.round(DC.bild.width * f) || c.height !== Math.round(DC.bild.height * f)) { c.width = Math.round(DC.bild.width * f); c.height = Math.round(DC.bild.height * f); }
+  const g = c.getContext("2d"), s = pxProCss(c), W = c.width, H = c.height;
+  g.drawImage(DC.bild, 0, 0, W, H);
+  einblendung(g, (u, v) => [u * W, v * H], DC.bahnen.map(b => b.x), DC.start, DC.front, s, false);
+  const knopf = (x, y, farbe, aktiv) => { g.beginPath(); g.arc(x, y, (aktiv ? 11 : 8) * s, 0, 2 * Math.PI); g.fillStyle = farbe; g.fill(); g.lineWidth = 2 * s; g.strokeStyle = "#fff"; g.stroke(); };
+  const gr = DC.griff;
+  knopf(W * 0.06, DC.start * H, "#2eaa4f", gr === "start"); knopf(W * 0.94, DC.start * H, "#2eaa4f", gr === "start");
+  knopf(W * 0.06, DC.front * H, "#2f7fe0", gr === "front"); knopf(W * 0.94, DC.front * H, "#2f7fe0", gr === "front");
+  DC.bahnen.forEach(b => knopf(b.x * W, (DC.start + DC.front) / 2 * H, "#f08a24", gr === b));
+}
+(() => {
+  const c = $("dc-linien-bild");
+  c.addEventListener("pointerdown", ev => {
+    if (!DC.bild) return;
+    const [x, y] = leinwandPunkt(c, ev), W = c.width, H = c.height, tol = 30 * pxProCss(c);
+    const kand = [["start", Math.abs(y - DC.start * H)], ["front", Math.abs(y - DC.front * H)]];
+    if (y > (DC.front - 0.05) * H && y < (DC.start + 0.08) * H) DC.bahnen.forEach(b => kand.push([b, Math.abs(x - b.x * W)]));
+    kand.sort((a, b) => a[1] - b[1]);
+    if (!kand.length || kand[0][1] > tol) return;
+    DC.griff = kand[0][0]; c.setPointerCapture(ev.pointerId); ev.preventDefault(); dcLinienZeichnen();
+  });
+  c.addEventListener("pointermove", ev => {
+    const gr = DC.griff;
+    if (gr === null || !DC.bild) return;
+    const [x, y] = leinwandPunkt(c, ev), u = x / c.width, v = Math.min(0.995, Math.max(0.005, y / c.height));
+    if (gr === "start") DC.start = r4(Math.max(v, DC.front + 0.06));
+    else if (gr === "front") DC.front = r4(Math.min(v, DC.start - 0.06));
+    else gr.x = r4(Math.min(0.99, Math.max(0.01, u)));
+    ev.preventDefault(); dcLinienZeichnen();
+  });
+  const los = () => {
+    if (DC.griff === null) return;
+    DC.griff = null;
+    DC.bahnen.sort((a, b) => a.x - b.x);   // Probe bleibt an ihrer Bahn
+    for (let i = 1; i < DC.bahnen.length; i++) if (DC.bahnen[i].x - DC.bahnen[i - 1].x < 0.012) DC.bahnen[i].x = r4(Math.min(0.99, DC.bahnen[i - 1].x + 0.012));
+    dcLinienZeichnen();
+  };
+  c.addEventListener("pointerup", los); c.addEventListener("pointercancel", los);
+})();
+function dcBahnenNeu(n) {
+  const alt = DC.bahnen, xs = alt.length >= 2 ? bahnenVerteilen(n, alt[0].x, alt[alt.length - 1].x) : bahnenVerteilen(n);
+  DC.bahnen = xs.map((x, i) => ({ x, probe: alt[i] ? alt[i].probe : null }));
+  $("dc-bahnen").value = String(n); dcLinienZeichnen();
+}
+$("dc-verteilen").onclick = () => dcBahnenNeu(DC.bahnen.length);
+$("dc-minus").onclick = () => { if (DC.bahnen.length > 1) dcBahnenNeu(DC.bahnen.length - 1); };
+$("dc-plus").onclick = () => { if (DC.bahnen.length < 30) dcBahnenNeu(DC.bahnen.length + 1); };
+$("dc-zu-ecken").onclick = () => { dcSchritt("dc-ecken"); dcEckenZeichnen(); };
+$("dc-weiter").onclick = () => { meldung("dc-hoch-meldung", ""); $("hochladen").disabled = false; dcSchritt("dc-proben"); dcBahnlisteZeigen(); };
+$("dc-zu-linien").onclick = () => { dcSchritt("dc-linien"); dcLinienZeichnen(); };
+
+// Schritt 3: Proben je Bahn (QR-Etikett oder Suche, wie unter „Proben“)
+const probeText = p => [p.kennung, p.bezeichnung || p.art].filter(Boolean).join(" · ");
+function dcBahnlisteZeigen() {
+  const z = $("dc-bahnliste"); z.innerHTML = "";
+  DC.bahnen.forEach((b, i) => {
+    const zeile = document.createElement("div"); zeile.className = "dc-bahn";
+    const nr = document.createElement("span"); nr.className = "nr"; nr.textContent = `Bahn ${i + 1}`;
+    const pr = document.createElement("span"); pr.className = "pr"; pr.textContent = b.probe ? b.probe.text : "–";
+    const scan = document.createElement("button"); scan.type = "button"; scan.className = "leise"; scan.textContent = "📷";
+    scan.setAttribute("aria-label", "Proben-Etikett scannen");
+    scan.onclick = () => scannen(t => dcProbeAusText(i, t), "dc-hoch-meldung", `Proben-Etikett für Bahn ${i + 1}`);
+    const such = document.createElement("button"); such.type = "button"; such.className = "leise"; such.textContent = "🔎";
+    such.setAttribute("aria-label", "Probe suchen");
+    zeile.append(nr, pr, scan, such);
+    if (b.probe) {
+      const weg = document.createElement("button"); weg.type = "button"; weg.className = "leise"; weg.textContent = "✕";
+      weg.setAttribute("aria-label", "Zuordnung entfernen");
+      weg.onclick = () => { b.probe = null; dcBahnlisteZeigen(); };
+      zeile.appendChild(weg);
+    }
+    z.appendChild(zeile);
+    const feldZeile = document.createElement("div"); feldZeile.className = "versteckt"; z.appendChild(feldZeile);
+    such.onclick = () => {
+      feldZeile.classList.toggle("versteckt");
+      if (feldZeile.childNodes.length) return;
+      const ein = eingabe("search"); ein.placeholder = "Kennung, Bezeichnung, Art oder Lagerort"; feldZeile.appendChild(ein);
+      const liste = document.createElement("div"); feldZeile.appendChild(liste);
+      let zeit = null;
+      ein.oninput = () => { clearTimeout(zeit); zeit = setTimeout(async () => {
+        const q = ein.value.trim(); liste.innerHTML = "";
+        if (q.length < 2) return;
+        try {
+          const treffer = await rpc("proben_suchen", { q });
+          if (!treffer.length) { liste.innerHTML = '<div class="klein">Nichts gefunden.</div>'; return; }
+          for (const p of treffer) {
+            const t = document.createElement("button"); t.type = "button"; t.className = "geb"; t.textContent = probeText(p);
+            t.onclick = () => { b.probe = { id: p.probe_id, text: probeText(p) }; dcBahnlisteZeigen(); };
+            liste.appendChild(t);
+          }
+        } catch (e) { meldung("dc-hoch-meldung", e.offline ? "Ohne Netz lassen sich Proben nur über das QR-Etikett zuordnen." : e.message, "fehler"); }
+      }, 300); };
+      ein.focus();
+    };
+  });
+}
+async function dcProbeAusText(i, text) {
+  const b = DC.bahnen[i], m = /[#?&]p=(\d+)/.exec(text || "");
+  if (!b) return;
+  meldung("dc-hoch-meldung", "");
+  if (m) {   // eigenes QR-Etikett: die Probe steht im Code – geht auch ohne Netz
+    b.probe = { id: Number(m[1]), text: `Probe #${m[1]}` }; dcBahnlisteZeigen();
+    try { const p = await rpc("probe_holen", { p: "#p=" + m[1] }); b.probe = { id: p.probe_id, text: probeText(p) }; dcBahnlisteZeigen(); }
+    catch (e) { if (!e.offline) { b.probe = null; dcBahnlisteZeigen(); meldung("dc-hoch-meldung", e.message, "fehler"); } }
+    return;
+  }
+  try {
+    const p = await rpc("probe_holen", { p: String(text), gescannt: true });
+    if (p && p.unbekannt) { meldung("dc-hoch-meldung", `Code ${p.code} gehört noch zu keiner Probe.`, "fehler"); return; }
+    b.probe = { id: p.probe_id, text: probeText(p) }; dcBahnlisteZeigen();
+  } catch (e) { meldung("dc-hoch-meldung", e.offline ? "Ohne Netz lassen sich Proben nur über das QR-Etikett zuordnen." : e.message, "fehler"); }
+}
+
+// Hochladen: mit Fuehrung das entzerrte Foto + Geometrie, sonst (wie bisher) das ganze Foto. Ohne Netz in die Warteschlange.
+async function dcHochladen(mitFuehrung) {
+  if (!DC.quelle) return;
+  const titel = $("titel").value.trim(), ziel = mitFuehrung ? "dc-hoch-meldung" : "dc-ecken-meldung", knopf = mitFuehrung ? $("hochladen") : $("dc-direkt");
+  const arg = { foto_base64: (mitFuehrung ? DC.bild : DC.quelle).toDataURL("image/jpeg", mitFuehrung ? 0.88 : 0.9), dateiname: DC.name, titel };
+  if (mitFuehrung) arg.geometrie = { version: 1, start_y: r4(DC.start), front_y: r4(DC.front), bahnen: DC.bahnen.map(b => r4(b.x)),
+                                     proben: DC.bahnen.map(b => b.probe ? b.probe.id : null), platte_cm: dcPlatte(), entzerrt: DC.entzerrt };
+  knopf.disabled = true; meldung(ziel, "Wird hochgeladen …", "ok");
+  try {
+    const r = await rpc("dc_foto_hochladen", arg);
+    dcFertig(`Hochgeladen (${Math.round(r.groesse / 1024)} kB). In Echinopsis unter Rhipsalis → DC als Entwurf.`);
+  } catch (e) {
+    if (e.offline) {
+      arg.titel = titel || `Smartphone ${standText(Date.now())}`;
+      const vorher = puffer().length;
+      pufferAuf("dc_foto_hochladen", arg, `DC-Foto ${arg.titel}`);
+      if (puffer().length > vorher) { dcFertig("Ohne Netz gespeichert – wird gesendet, sobald das Handy wieder Netz hat."); return; }
+      meldung(ziel, "Das Foto passt nicht mehr in den Speicher des Handys – bitte mit Netz noch einmal „Hochladen“ tippen.", "fehler");
+    } else meldung(ziel, e.message, "fehler");
+    knopf.disabled = false;
+  }
+}
+function dcFertig(text) {
+  Object.assign(DC, { quelle: null, bild: null, ecken: null, griff: null, bahnen: [] });
+  $("foto").value = ""; $("titel").value = ""; $("hochladen").disabled = false; $("dc-direkt").disabled = false;
+  dcSchritt("dc-start"); dcFuehrungZeichnen(); meldung("dc-meldung", text, "ok");
+}
+$("hochladen").onclick = () => dcHochladen(true);
+dcFuehrungZeichnen();
 
 // ---- Englisch (ab Maurice 0.015, Nutzerwunsch 31.10.2026): Umschalter unten neben „Abmelden“. Die Seite bleibt deutsch geschrieben;
 // alle angezeigten Texte (auch spaeter eingefuegte und Meldungen des Servers) werden ueber das Woerterbuch uebersetzt. Daten (Namen,
@@ -1585,6 +2163,32 @@ const EN = {
   "Vergangene Bestellungen, noch nicht im Bestand": "Past orders not yet in stock",
   "Keine passende Bestellung, die noch nicht im Bestand ist.": "No matching order that is not yet in stock.",
   "Diese Bestellung ist schon ganz im Bestand.": "This order is already fully in stock.", "Die Bestellung gibt es nicht (mehr).": "This order does not exist (any more).",
+  // DC-Foto mit Fuehrung (M-1, ab Maurice 0.026)
+  "Zahl der Bahnen": "Number of lanes", "Platte (Breite × Höhe)": "Plate (width × height)", "andere Größe": "other size",
+  "So fotografieren: Platte flach auf eine dunkle Unterlage, gerade von oben, ganze Platte im Bild, ohne Spiegelung. Startlinie unten, Front oben.":
+    "How to take the photo: plate flat on a dark surface, straight from above, whole plate in the picture, no glare. Start line at the bottom, front at the top.",
+  "Schritt 1 von 3": "Step 1 of 3", "Schritt 2 von 3": "Step 2 of 3", "Schritt 3 von 3": "Step 3 of 3", "Ecken der Platte": "Plate corners",
+  "Die vier runden Griffe auf die Ecken der Platte ziehen. Die Einblendung zeigt Plattenrahmen, Startlinie (grün), Frontlinie (blau) und Bahnen (orange). Steht die Platte auf dem Kopf oder quer: „↻ Drehen“.":
+    "Drag the four round handles onto the corners of the plate. The overlay shows the plate frame, start line (green), front line (blue) and lanes (orange). If the plate is upside down or sideways: “↻ Rotate”.",
+  "✨ Ecken suchen": "✨ Find corners", "↻ Drehen": "↻ Rotate", "Ohne Entzerren": "Without correction", "📷 Neues Foto": "📷 New photo",
+  "Entzerren und zuschneiden": "Straighten and crop", "Ohne Führung hochladen (wie bisher)": "Upload without guide (as before)",
+  "Startlinie, Frontlinie und Bahnen": "Start line, front line and lanes",
+  "Linien mit dem Finger auf die Platte ziehen: Startlinie (grün), Frontlinie (blau), Bahnen (orange) auf die Mitte der Auftragspunkte.":
+    "Drag the lines onto the plate with your finger: start line (green), front line (blue), lanes (orange) onto the centre of the application spots.",
+  "Bahnen gleichmäßig": "Spread lanes evenly", "− Bahn": "− lane", "＋ Bahn": "＋ lane", "‹ Ecken": "‹ Corners", "Weiter: Proben zuordnen": "Next: assign samples",
+  "Proben je Bahn (optional)": "Samples per lane (optional)",
+  "Je Bahn das Proben-Etikett scannen oder die Probe suchen. Ohne Zuordnung lässt sich das in Rhipsalis am PC nachholen.":
+    "Scan the sample label or search for the sample for each lane. Without an assignment this can be done later in Rhipsalis on the PC.",
+  "‹ Linien": "‹ Lines", "Proben-Etikett scannen": "Scan sample label", "Probe suchen": "Search sample", "Zuordnung entfernen": "Remove assignment",
+  "Ecken vorgeschlagen – bitte prüfen und genau auf die Ecken ziehen.": "Corners suggested – please check them and drag them exactly onto the corners.",
+  "Bitte die vier Griffe auf die Ecken der Platte ziehen.": "Please drag the four handles onto the corners of the plate.",
+  "Keine Platte erkannt – bitte die Ecken von Hand ziehen.": "No plate recognised – please drag the corners by hand.",
+  "Die Ecken bilden kein Viereck – bitte in der Reihenfolge OL, OR, UR, UL auf die Platte ziehen.":
+    "The corners do not form a quadrilateral – please drag them onto the plate in the order TL, TR, BR, BL.",
+  "Entzerre …": "Straightening …", "Die Ecken liegen auf einer Linie.": "The corners lie on one line.",
+  "Ohne Netz lassen sich Proben nur über das QR-Etikett zuordnen.": "Without network, samples can only be assigned via the QR label.",
+  "Das Foto passt nicht mehr in den Speicher des Handys – bitte mit Netz noch einmal „Hochladen“ tippen.":
+    "The photo no longer fits into the phone’s storage – please tap “Upload” again when online.",
   // Meldungen des Servers
   "nicht angemeldet": "not signed in", "kein ScienceHub-Konto zu dieser Anmeldung": "no ScienceHub account for this sign-in",
   "Mit einem Nur-Lesen-Konto kann nichts geändert werden.": "A read-only account cannot change anything.",
@@ -1609,6 +2213,16 @@ const EN = {
   "Das ist schon ein Proben-Etikett von ScienceHub.": "This is already a ScienceHub sample label.", "Bitte eine Menge ab 0 eingeben.": "Please enter an amount of 0 or more.",
   "Pflanzenmaterial": "Plant material", "Extrakt": "Extract", "Fraktion": "Fraction", "Reinsubstanz/Standard": "Pure compound/standard", "Lösung": "Solution",
   "Sonstiges": "Other",
+  // Proben-Inventur (OB-8, ab Maurice 0.027)
+  "Proben-Inventur": "Sample stocktaking", "📷 Lagerort scannen": "📷 Scan location", "📷 Proben scannen": "📷 Scan samples", "Lagerort-Etikett": "Location label",
+  "Proben-Inventur: erst den Lagerort scannen oder wählen, dann die Etiketten aller Proben dort scannen. „Ergebnis senden“ zeigt fehlende, falsch abgelegte und unbekannte Proben und trägt die Inventur in Obregonia ein.":
+    "Sample stocktaking: first scan or choose the location, then scan the labels of all samples there. “Send result” shows missing, misplaced and unknown samples and records the stocktaking in Obregonia.",
+  "Das ist kein Lagerort-Etikett – bitte zuerst den Lagerort scannen oder wählen.": "This is not a location label – please scan or choose the location first.",
+  "Keine Proben mit Lagerort.": "No samples with a location.", "Kennung eintippen": "Type sample ID", "Nicht in der Liste (prüft der Server)": "Not on the list (checked by the server)",
+  "Das ist ein Gebinde-Etikett (Parodia), keine Probe.": "This is a container label (Parodia), not a sample.", "Schon gescannt.": "Already scanned.",
+  "Lagerort der falsch abgelegten Proben auf diesen Lagerort setzen": "Set the location of misplaced samples to this location", "✓ Ergebnis senden": "✓ Send result",
+  "Nicht gefunden": "Not found", "Falsch abgelegt": "Misplaced", "Unbekannte Codes": "Unknown codes", "Kein Lagerort angegeben.": "No location given.",
+  "Höchstens 2000 Codes auf einmal.": "At most 2000 codes at once.",
 };
 const EN_MUSTER = [
   [/^bestellt: (.+)$/, "ordered: $1"],
@@ -1634,6 +2248,11 @@ const EN_MUSTER = [
   [/^Die Kamera ließ sich nicht öffnen \((.*)\)\. Bitte den Zugriff auf die Kamera erlauben\.$/, "The camera could not be opened ($1). Please allow camera access."],
   [/^Hochgeladen \((\d+) kB\)\. In Echinopsis unter Rhipsalis → DC als Entwurf\.$/, "Uploaded ($1 kB). In Echinopsis under Rhipsalis → TLC as a draft."],
   [/^Anmeldung fehlgeschlagen \((\d+)\)$/, "Sign-in failed ($1)"], [/^Fehler (\d+)$/, "Error $1"],
+  [/^Bahn (\d+)$/, "Lane $1"], [/^Proben-Etikett für Bahn (\d+)$/, "Sample label for lane $1"], [/^Probe #(\d+)$/, "Sample #$1"],
+  [/^Ungültige Plattengeometrie: (.*)$/, "Invalid plate geometry: $1"],
+  [/^(\d+) von (\d+) erwarteten Proben gescannt$/, "$1 of $2 expected samples scanned"], [/^\? (.+) – nicht an diesem Lagerort erwartet$/, "? $1 – not expected at this location"],
+  [/^Inventur gespeichert: (\d+) vorhanden, (\d+) nicht gefunden, (\d+) falsch abgelegt, (\d+) unbekannt\.$/, "Stocktaking saved: $1 present, $2 not found, $3 misplaced, $4 unknown."],
+  [/^(.+) · erfasst: (.+)$/, "$1 · recorded: $2"],
   [/^Das Gebinde ist schon als „(.+)“ gemeldet\.$/, (m, a) => `The container has already been reported as “${EN_STATUS[a] || a}”.`],
   [/^Keine Probe „(.+)“ gefunden\.$/, "No sample “$1” found."], [/^Code (.+) gehört noch zu keiner Probe\.$/, "Code $1 does not belong to any sample yet."],
   [/^Zugeordnet: (.+) – der Code ist jetzt bekannt\.$/, "Assigned: $1 – the code is now known."], [/^Angelegt: (.+) – der Code ist zugeordnet\.$/, "Created: $1 – the code is assigned."],
