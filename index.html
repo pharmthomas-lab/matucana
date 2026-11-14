@@ -6,7 +6,7 @@
      dieser Seite, Supabase und dem ZXing-WASM. NACH JEDER AENDERUNG AM SKRIPT die Pruefsumme neu setzen:
      py -c "import sys; sys.path.insert(0, 'scripts'); import matucana; print(matucana.csp_aktualisieren('matucana/index.html'))"
      (tests\b2_server_test.py prueft, dass sie passt – sonst laeuft die App nicht). -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-0wpFDw4kMMR9uE65XGld9nCK6Mja1lMQHAUKrHO/1gs=' https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.5/ 'wasm-unsafe-eval'; style-src 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; connect-src 'self' https://*.supabase.co https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.5/; manifest-src 'self'; worker-src blob:; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-Tv1BM/fcuCmWo4rHMbHBrYFeGMrIH7Y3mLiydcevKaw=' https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.5/ 'wasm-unsafe-eval'; style-src 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; connect-src 'self' https://*.supabase.co https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.5/; manifest-src 'self'; worker-src blob:; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#2e7d4f">
 <title>Matucana · ScienceHub</title>
@@ -307,7 +307,7 @@
 <footer>
   <div class="knopfreihe" style="justify-content:center"><span id="abmelden-zeile" class="versteckt"><button class="leise" id="abmelden">Abmelden</button></span>
     <button class="leise" id="sprache" type="button">🇬🇧 English</button></div>
-  <div style="margin-top:10px">Matucana · Schnittstelle <span id="version">Maurice 0.027</span> · ScienceHub, CAU Kiel</div>
+  <div style="margin-top:10px">Matucana · Schnittstelle <span id="version">Maurice 0.028</span> · ScienceHub, CAU Kiel</div>
 </footer>
 
 <!-- Scanner fuer QR, DataMatrix (GS1) und Strichcodes, auch auf dem iPhone (zxing-cpp als zxing-wasm, MIT-Lizenz) -->
@@ -315,7 +315,7 @@
         integrity="sha256-Io5tjMuEHFRDhu6v1fGClNPkqg56ogQZvFGgAJudPBc=" crossorigin="anonymous"></script>
 <script>
 "use strict";
-const VERSION = "Maurice 0.027";   // 0.027: Kachel Proben-Inventur (OB-8): Lagerort scannen/waehlen, Proben scannen, Vergleich, Ergebnis senden (fehlend/falsch abgelegt/unbekannt, Lagerort uebernehmen); 0.026: DC-Foto mit Fuehrung (M-1): Skizze vor der Aufnahme, Ecken antippen/vorschlagen mit Einblendung, Entzerren, Start/Front/Bahnen ziehen, Proben je Bahn, Geometrie an dc_foto_hochladen, ohne Netz in die Warteschlange; 0.025: Inhaltsrichtlinie (CSP) – nur dieses Skript, ZXing und die Supabase-Adresse; gemerkte Anmeldung hoechstens 14 Tage (S-12); 0.024: Abmelden auch beim Server (/auth/v1/logout), Zwischenstaende im Handy loeschen, wartende Meldungen nur nach Rueckfrage verwerfen (M-2/M-3, Testbericht 08.11.2026); 0.023: Was ist leer? auch bald knappe Artikel (Verbrauchsprognose); 0.022: Kachel „Was ist leer?“ (E-8, SP 1); 0.021: GS1 Digital Link, fremde Adressen nur nach Rueckfrage; 0.019: Proben ohne Etikett – fremden Code zuordnen, neue Probe anlegen (F3); 0.018: Scanner zxing-cpp (WASM) statt ZXing-JS, hohe Aufloesung mit Fokus/Zoom, „Foto statt Video“ fuer kleine Codes; 0.017: Wareneingang auch fuer vergangene Bestellungen (noch nicht im Bestand, Suche, Scan); 0.016: Kachel Wareneingang (Lieferung per Scan bestaetigen, Teillieferung, Artikel waehlen/anlegen); 0.015: Gebinde ohne Etikett per Hersteller-Code erfassen (zuordnen oder neu anlegen), fremde Codes abgewiesen, Englisch umschaltbar; 0.014: Einheit nur als Text (A8), ZXing mit Pruefsumme (SRI)
+const VERSION = "Maurice 0.028";   // 0.028: Wareneingang uebernimmt Hersteller-Links (QR mit Internet-Adresse) ohne Rueckfrage, Artikelnummer und Charge aus der Adresse; 0.027: Kachel Proben-Inventur (OB-8): Lagerort scannen/waehlen, Proben scannen, Vergleich, Ergebnis senden (fehlend/falsch abgelegt/unbekannt, Lagerort uebernehmen); 0.026: DC-Foto mit Fuehrung (M-1): Skizze vor der Aufnahme, Ecken antippen/vorschlagen mit Einblendung, Entzerren, Start/Front/Bahnen ziehen, Proben je Bahn, Geometrie an dc_foto_hochladen, ohne Netz in die Warteschlange; 0.025: Inhaltsrichtlinie (CSP) – nur dieses Skript, ZXing und die Supabase-Adresse; gemerkte Anmeldung hoechstens 14 Tage (S-12); 0.024: Abmelden auch beim Server (/auth/v1/logout), Zwischenstaende im Handy loeschen, wartende Meldungen nur nach Rueckfrage verwerfen (M-2/M-3, Testbericht 08.11.2026); 0.023: Was ist leer? auch bald knappe Artikel (Verbrauchsprognose); 0.022: Kachel „Was ist leer?“ (E-8, SP 1); 0.021: GS1 Digital Link, fremde Adressen nur nach Rueckfrage; 0.019: Proben ohne Etikett – fremden Code zuordnen, neue Probe anlegen (F3); 0.018: Scanner zxing-cpp (WASM) statt ZXing-JS, hohe Aufloesung mit Fokus/Zoom, „Foto statt Video“ fuer kleine Codes; 0.017: Wareneingang auch fuer vergangene Bestellungen (noch nicht im Bestand, Suche, Scan); 0.016: Kachel Wareneingang (Lieferung per Scan bestaetigen, Teillieferung, Artikel waehlen/anlegen); 0.015: Gebinde ohne Etikett per Hersteller-Code erfassen (zuordnen oder neu anlegen), fremde Codes abgewiesen, Englisch umschaltbar; 0.014: Einheit nur als Text (A8), ZXing mit Pruefsumme (SRI)
 const FOTO_PX = 2400;   // laengste Kante nach dem Verkleinern
 const ANMELDUNG_TAGE = 14;   // S-12: so lange bleibt man auf dem Handy angemeldet (danach Passwort neu, der Passwort-Manager hilft)
 let K = null;           // {url, apikey} aus konfig.json
@@ -821,6 +821,33 @@ function adresseAnnehmen(text, ziel) {   // ab Maurice 0.021: eine andere Intern
   meldung(ziel, "Nicht übernommen – der Code ist eine Internet-Adresse.", "fehler");
   return false;
 }
+// ---- Hersteller-Links im Wareneingang (ab Maurice 0.028, Nutzer 12.11.2026: „im Wareneingang bei QR-Codes oft der Hinweis, dass dies
+// ein Websitelink ist“): dort ohne Rueckfrage – die Adresse wird erst beim Buchen dem Artikel zugeordnet; Artikelnummer und Charge,
+// soweit erkennbar, aus der Adresse (…/product/sigald/270997, …/p/3053.1, ?sku=…&lot=…)
+const ADR_NR = /^(product|productnumber|productno|produkt|artikel|artikelnummer|artnr|sku|item|itemnumber|catalog|catalognumber|catno|cat|katalog|bestellnummer|partnumber|pn|ref|p|id)$/i;
+const ADR_CHARGE = /^(lot|lotnumber|lotno|batch|batchnumber|batchno|charge|chargennummer|chnr)$/i;
+function adresseNummern(t) {   // Internet-Adresse (nicht eigenes Etikett, nicht GS1 Digital Link) -> { nummern: [...], charge } oder null
+  const s = String(t || "").trim();
+  if (!/^https?:\/\//i.test(s) || gebindeAusText(s) || gs1Link(s)) return null;
+  let u;
+  try { u = new URL(s); } catch (e) { return null; }
+  const nummern = [];
+  const dazu = x => {
+    x = String(x || "").trim().replace(/\.(html?|aspx?|php|jsp)$/i, "");
+    if (x.length <= 40 && /\d/.test(x) && nrKurz(x).length >= 3 && !nummern.includes(x)) nummern.push(x);
+  };
+  let charge = null;
+  const teile = u.pathname.split("/").filter(Boolean).map(x => { try { return decodeURIComponent(x); } catch (e) { return x; } });
+  const chargeTeil = new Set();
+  teile.forEach((x, j) => { if (ADR_CHARGE.test(x) && teile[j + 1]) { charge = charge || teile[j + 1].trim(); chargeTeil.add(j + 1); } });
+  for (const [k, v] of u.searchParams) if (ADR_CHARGE.test(k)) charge = charge || v.trim() || null; else if (ADR_NR.test(k)) dazu(v);
+  for (let j = teile.length - 1; j >= 0; j--) {   // hinten zuerst: die Artikelnummer steht meist am Ende der Adresse
+    if (chargeTeil.has(j) || ADR_CHARGE.test(teile[j])) continue;
+    dazu(teile[j]);
+    for (const x of teile[j].split(/[,;_|~+]+/)) { dazu(x); for (const y of x.split("-")) dazu(y); }
+  }
+  return { nummern, charge: charge || null };
+}
 function feld(eltern, text, el) { const l = document.createElement("label"); l.textContent = text; eltern.append(l, el); return el; }
 function eingabe(typ, wert) {
   const i = document.createElement("input"); i.type = typ;
@@ -1244,19 +1271,26 @@ $("we-scannen").onclick = () => scannen(async text => {
   if (gebindeAusText(text)) { meldung("we-meldung", "Das ist ein Gebinde-Etikett – dieses Gebinde ist schon im Bestand.", "fehler"); return; }
   const fremd = fremderCode(text);
   if (fremd) { meldung("we-meldung", fremd, "fehler"); return; }
-  if (!adresseAnnehmen(text, "we-meldung")) return;
-  const gs = gs1Lesen(text), roh = String(text).trim(), code = gs ? gs.gtin : roh;
+  // ab 0.028: Internet-Adressen (Hersteller-Links) ohne Rueckfrage – zugeordnet wird erst beim Buchen
+  const gs = gs1Lesen(text), roh = String(text).trim(), code = gs ? gs.gtin : roh, adr = gs ? null : adresseNummern(roh);
   try {
-    const r = await rpc("code_suchen", { code, charge: null });
+    let r = await rpc("code_suchen", { code, charge: null });
+    const neuerCode = r.unbekannt ? r.code : null;
+    if (r.unbekannt && adr) {   // Adresse noch unbekannt: Artikelnummer aus der Adresse (code_suchen kennt auch Artikelnummern)
+      for (const nr of adr.nummern.slice(0, 5)) {
+        const r2 = await rpc("code_suchen", { code: nr, charge: null });
+        if (!r2.unbekannt) { r = r2; break; }
+      }
+    }
     if (!weListe.length) await weLaden();
-    const nrs = new Set([nrKurz(roh), nrKurz(code)]);
+    const nrs = new Set([nrKurz(roh), nrKurz(code), ...(adr ? adr.nummern.map(nrKurz) : [])]);
     if (!r.unbekannt && r.artikelnummer) nrs.add(nrKurz(r.artikelnummer));
     let passend = weListe.filter(p => (!r.unbekannt && p.art_id === r.art_id) || (p.artikelnummer && nrs.has(nrKurz(p.artikelnummer))));
     if (!passend.length && !r.unbekannt) {   // ab 0.017: auch aeltere vergangene Bestellungen dieses Artikels
       passend = (await rpc("bestellungen_offen", { art_id: r.art_id })).map(vbPosition);
     }
-    weCode = r.unbekannt ? r.code : null;   // noch unbekannter Code: beim Buchen dem Artikel zuordnen
-    weGs = gs;
+    weCode = neuerCode;   // noch unbekannter Code (auch ein Hersteller-Link): beim Buchen dem Artikel zuordnen
+    weGs = gs || (adr && adr.charge ? { gtin: null, charge: adr.charge, verfall: null } : null);
     if (passend.length === 1) {
       weZeigen(weListe); weFormular(passend[0]);
       meldung("we-meldung", `Position gefunden: ${passend[0].bezeichnung || passend[0].name}.`, "ok");
@@ -1265,7 +1299,8 @@ $("we-scannen").onclick = () => scannen(async text => {
       meldung("we-meldung", "Mehrere Positionen passen – bitte antippen.", "ok");
     } else {
       weZeigen(weListe); $("we-buchen").classList.add("versteckt");
-      meldung("we-meldung", (r.unbekannt ? `Code ${r.code} ist noch keinem Artikel zugeordnet.` : `${r.name}:`)
+      meldung("we-meldung", (r.unbekannt ? (adr ? `Hersteller-Link${adr.nummern.length ? ` (gelesen: ${adr.nummern.slice(0, 3).join(", ")})` : ""} ist noch keinem Artikel zugeordnet.`
+                                                : `Code ${r.code} ist noch keinem Artikel zugeordnet.`) : `${r.name}:`)
               + " Keine bestellte Position gefunden – bitte die Position in der Liste antippen.", "fehler");
     }
   } catch (e) { meldung("we-meldung", e.message, "fehler"); }
@@ -2237,6 +2272,10 @@ const EN_MUSTER = [
   [/^Von dieser Bestellung sind noch (\d+) Gebinde offen\.$/, "$1 containers of this order are still open."],
   [/^Code (\S+) ist noch keinem Artikel zugeordnet\. Keine bestellte Position gefunden – bitte die Position in der Liste antippen\.$/,
    "Code $1 is not assigned to any item yet. No ordered line found – please tap the line in the list."],
+  [/^Hersteller-Link ist noch keinem Artikel zugeordnet\. Keine bestellte Position gefunden – bitte die Position in der Liste antippen\.$/,
+   "Manufacturer link is not assigned to any item yet. No ordered line found – please tap the line in the list."],
+  [/^Hersteller-Link \(gelesen: (.+)\) ist noch keinem Artikel zugeordnet\. Keine bestellte Position gefunden – bitte die Position in der Liste antippen\.$/,
+   "Manufacturer link (read: $1) is not assigned to any item yet. No ordered line found – please tap the line in the list."],
   [/^(.*): Keine bestellte Position gefunden – bitte die Position in der Liste antippen\.$/, "$1: no ordered line found – please tap the line in the list."],
   [/^(\d+) Gebinde$/, "$1 containers"], [/^Ch\. (.+)$/, "Lot $1"], [/^Charge (.+)$/, "Lot $1"], [/^verw\. bis (\S+?)(\.?)$/, "use by $1$2"],
   [/^noch (.+)$/, "$1 left"], [/^gezählt (.+)$/, "counted $1"], [/^Stand (.+)$/, "as of $1"], [/^(.*) \(läuft gerade\)$/, "$1 (in progress)"],
